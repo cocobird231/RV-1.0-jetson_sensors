@@ -1,0 +1,31 @@
+#config/common.yaml
+
+---
+topic_ZEDCam_RGB:
+    nodeName : "zed_rgb_0_node" # Ignore
+    topicName : "zed_rgb_0"
+    publishInterval_s : 0.033 # Publish rate in seconds
+    width : 640 # Publish resolution
+    height : 360
+
+topic_ZEDCam_Depth:
+    nodeName : "zed_depth_0_node" # Ignore
+    topicName : "zed_depth_0"
+    publishInterval_s : 0.033 # Publish rate in seconds
+    width : 640 # Publish resolution
+    height : 360
+
+node_prop:
+    nodeName : "zed_0_node" # Primary
+    namespace : "V0"
+    
+camera_prop:
+    cap_id : 0 # Input ZED ID
+    fps : 30.0 # Input frame rate
+    width : 1280 # Input resolution
+    height : 720 # Input resolution (main decision, max: 1080p, min: VGA)
+    sensing_mode : 0 # 0: standard mode, 1: fill mode
+    depth_quality : 0 # 0: performance, 1: quality
+    depth_unit : 1 # 0: micrometer, 1: millimeter, 2: centimeter, 3: meter
+    use_color : True # Publish RGB image
+    use_depth : True # Publish depth image
