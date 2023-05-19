@@ -67,9 +67,11 @@ int main(int argc, char** argv)
     // Set runtime parameters after opening the camera
     sl::RuntimeParameters runtime_parameters;
     if (params->camera_sensing_mode == 0)// Standard mode
-        runtime_parameters.sensing_mode = sl::SENSING_MODE::STANDARD;
+        // runtime_parameters.sensing_mode = sl::SENSING_MODE::STANDARD;// SDK ver 3.8
+        runtime_parameters.enable_fill_mode = false;
     else if (params->camera_sensing_mode == 1)// Fill mode
-        runtime_parameters.sensing_mode = sl::SENSING_MODE::FILL;
+        // runtime_parameters.sensing_mode = sl::SENSING_MODE::FILL;// SDK ver 3.8
+        runtime_parameters.enable_fill_mode = true;
     
     sl::Mat rgbslMat, depthslMat;
     /*
