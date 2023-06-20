@@ -15,10 +15,6 @@ topic_ZEDCam_Depth:
     width : 640 # Publish resolution
     height : 360
 
-node_prop:
-    nodeName : "zed_0_node" # Primary
-    namespace : "V0"
-    
 camera_prop:
     cap_id : 0 # Input ZED ID
     fps : 30.0 # Input frame rate
@@ -29,3 +25,10 @@ camera_prop:
     depth_unit : 1 # 0: micrometer, 1: millimeter, 2: centimeter, 3: meter
     use_color : True # Publish RGB image
     use_depth : True # Publish depth image
+
+generic_prop:
+    nodeName : "zed_0_node" # Primary
+    namespace : "V0"
+    qosService : "qos_0"
+    safetyService : "safety_0"
+    timesyncService : "timesync_0"

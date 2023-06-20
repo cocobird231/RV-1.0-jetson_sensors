@@ -25,7 +25,7 @@ cv::Mat slMat2cvMat(sl::Mat& input)
 int main(int argc, char** argv)
 {
     rclcpp::init(argc, argv);
-    auto params = std::make_shared<Params>("zedcam_params_node");
+    auto params = std::make_shared<Params>("zed_params_node");
     auto zedPub = std::make_shared<ZEDPublisher>(params);
 
     /*

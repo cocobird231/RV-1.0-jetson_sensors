@@ -13,7 +13,7 @@ def generate_launch_description():
     return LaunchDescription([
         Node(
             package="cpp_zedcam",
-            namespace=data['node_prop']['namespace'],
+            namespace=data['generic_prop']['namespace'],
             executable="pub",
             output="screen",
             emulate_tty=True,
@@ -29,7 +29,6 @@ def generate_launch_description():
                     "topic_ZEDCam_Depth_pubInterval_s" : data['topic_ZEDCam_Depth']['publishInterval_s'], 
                     "topic_ZEDCam_Depth_width" : data['topic_ZEDCam_Depth']['width'], 
                     "topic_ZEDCam_Depth_height" : data['topic_ZEDCam_Depth']['height'], 
-                    "mainNodeName" : data['node_prop']['nodeName'], 
                     "camera_cap_id" : data['camera_prop']['cap_id'], 
                     "camera_fps" : data['camera_prop']['fps'], 
                     "camera_width" : data['camera_prop']['width'], 
@@ -39,6 +38,10 @@ def generate_launch_description():
                     "camera_depth_unit" : data['camera_prop']['depth_unit'], 
                     "camera_use_color" : data['camera_prop']['use_color'], 
                     "camera_use_depth" : data['camera_prop']['use_depth'], 
+                    "nodeName" : data['generic_prop']['nodeName'], 
+                    "qosService" : data['generic_prop']['qosService'], 
+                    "safetyService" : data['generic_prop']['safetyService'], 
+                    "timesyncService" : data['generic_prop']['timesyncService'], 
                 }
             ]
         )

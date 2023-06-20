@@ -8,6 +8,8 @@
 
 #include <opencv2/opencv.hpp>
 
+#define TS_MODE// Enable timesync
+
 
 class Params : public rclcpp::Node
 {
@@ -24,7 +26,6 @@ public:
     int topic_ZEDCam_Depth_width = 640;
     int topic_ZEDCam_Depth_height = 360;
 
-    std::string mainNodeName = "zed_0_node";
     int camera_cap_id = 0;
     float camera_fps = 30.0;
     int camera_width = 1280;
@@ -34,6 +35,11 @@ public:
     int camera_depth_unit = 1;// index started from 0: micro, milli, centi, meter
     bool camera_use_color = true;
     bool camera_use_depth = true;
+
+    std::string nodeName = "zed_0_node";
+    std::string qosService = "qos_0";
+    std::string safetyService = "safety_0";
+    std::string timesyncService = "timesync_0";
 
 private:
     void _getParams()
@@ -50,7 +56,6 @@ private:
         this->get_parameter("topic_ZEDCam_Depth_width", this->topic_ZEDCam_Depth_width);
         this->get_parameter("topic_ZEDCam_Depth_height", this->topic_ZEDCam_Depth_height);
 
-        this->get_parameter("mainNodeName", this->mainNodeName);
         this->get_parameter("camera_cap_id", this->camera_cap_id);
         this->get_parameter("camera_fps", this->camera_fps);
         this->get_parameter("camera_width", this->camera_width);
@@ -60,6 +65,11 @@ private:
         this->get_parameter("camera_depth_unit", this->camera_depth_unit);
         this->get_parameter("camera_use_color", this->camera_use_color);
         this->get_parameter("camera_use_depth", this->camera_use_depth);
+
+        this->get_parameter("nodeName", this->nodeName);
+        this->get_parameter("qosService", this->qosService);
+        this->get_parameter("safetyService", this->safetyService);
+        this->get_parameter("timesyncService", this->timesyncService);
     }
 
 public:
@@ -77,7 +87,6 @@ public:
         this->declare_parameter<int>("topic_ZEDCam_Depth_width", this->topic_ZEDCam_Depth_width);
         this->declare_parameter<int>("topic_ZEDCam_Depth_height", this->topic_ZEDCam_Depth_height);
 
-        this->declare_parameter<std::string>("mainNodeName", this->mainNodeName);
         this->declare_parameter<int>("camera_cap_id", this->camera_cap_id);
         this->declare_parameter<float>("camera_fps", this->camera_fps);
         this->declare_parameter<int>("camera_width", this->camera_width);
@@ -87,12 +96,20 @@ public:
         this->declare_parameter<int>("camera_depth_unit", this->camera_depth_unit);
         this->declare_parameter<bool>("camera_use_color", this->camera_use_color);
         this->declare_parameter<bool>("camera_use_depth", this->camera_use_depth);
+
+        this->declare_parameter<std::string>("nodeName", this->nodeName);
+        this->declare_parameter<std::string>("qosService", this->qosService);
+        this->declare_parameter<std::string>("safetyService", this->safetyService);
+        this->declare_parameter<std::string>("timesyncService", this->timesyncService);
         this->_getParams();
     }
 };
 
-
+#ifdef TS_MODE
+class ZEDPublisher : public TimeSyncNode
+#else
 class ZEDPublisher : public rclcpp::Node
+#endif
 {
 private:
     rclcpp::Publisher<vehicle_interfaces::msg::Image>::SharedPtr RGBPub_;
@@ -133,7 +150,11 @@ private:
         msg.header.device_id = this->nodeName_;
         msg.header.frame_id = frame_id++;
         msg.header.stamp_type = vehicle_interfaces::msg::Header::STAMPTYPE_NONE_UTC_SYNC;
+#ifdef TS_MODE
+        msg.header.stamp = this->getTimestamp();
+#else
         msg.header.stamp = this->get_clock()->now();
+#endif
 
         msg.format_type = msg.FORMAT_JPEG;
         msg.cvmat_type = this->rgbMatType_;
@@ -158,7 +179,11 @@ private:
         msg.header.device_id = this->nodeName_;
         msg.header.frame_id = frame_id++;
         msg.header.stamp_type = vehicle_interfaces::msg::Header::STAMPTYPE_NONE_UTC_SYNC;
+#ifdef TS_MODE
+        msg.header.stamp = this->getTimestamp();
+#else
         msg.header.stamp = this->get_clock()->now();
+#endif
 
         msg.format_type = msg.FORMAT_RAW;
         msg.cvmat_type = this->depthMatType_;
@@ -172,9 +197,15 @@ private:
     }
 
 public:
-    ZEDPublisher(std::shared_ptr<Params> params) : rclcpp::Node(params->mainNodeName), rgbMatInitF_(false), depthMatInitF_(false)
+    ZEDPublisher(std::shared_ptr<Params> params) : 
+#ifdef TS_MODE
+        TimeSyncNode(params->nodeName, params->timesyncService, 10000, 2), 
+#endif
+        rclcpp::Node(params->nodeName), 
+        rgbMatInitF_(false), 
+        depthMatInitF_(false)
     {
-        this->nodeName_ = params->mainNodeName;
+        this->nodeName_ = params->nodeName;
         this->useColorF_ = params->camera_use_color;
         this->useDepthF_ = params->camera_use_depth;
 
