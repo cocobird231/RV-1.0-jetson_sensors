@@ -4,6 +4,7 @@
 
 #include "rclcpp/rclcpp.hpp"
 #include "vehicle_interfaces/msg/image.hpp"
+#include "vehicle_interfaces/params.h"
 #include "vehicle_interfaces/timesync.h"
 
 #include <opencv2/opencv.hpp>
@@ -11,7 +12,7 @@
 #define TS_MODE// Enable timesync
 
 
-class Params : public rclcpp::Node
+class Params : public vehicle_interfaces::GenericParams
 {
 public:
     std::string topic_ZEDCam_RGB_nodeName = "zed_rgb_0_node";
@@ -35,11 +36,6 @@ public:
     int camera_depth_unit = 1;// index started from 0: micro, milli, centi, meter
     bool camera_use_color = true;
     bool camera_use_depth = true;
-
-    std::string nodeName = "zed_0_node";
-    std::string qosService = "qos_0";
-    std::string safetyService = "safety_0";
-    std::string timesyncService = "timesync_0";
 
 private:
     void _getParams()
@@ -65,15 +61,10 @@ private:
         this->get_parameter("camera_depth_unit", this->camera_depth_unit);
         this->get_parameter("camera_use_color", this->camera_use_color);
         this->get_parameter("camera_use_depth", this->camera_use_depth);
-
-        this->get_parameter("nodeName", this->nodeName);
-        this->get_parameter("qosService", this->qosService);
-        this->get_parameter("safetyService", this->safetyService);
-        this->get_parameter("timesyncService", this->timesyncService);
     }
 
 public:
-    Params(std::string nodeName) : Node(nodeName)
+    Params(std::string nodeName) : vehicle_interfaces::GenericParams(nodeName)
     {
         this->declare_parameter<std::string>("topic_ZEDCam_RGB_nodeName", this->topic_ZEDCam_RGB_nodeName);
         this->declare_parameter<std::string>("topic_ZEDCam_RGB_topicName", this->topic_ZEDCam_RGB_topicName);
@@ -96,11 +87,6 @@ public:
         this->declare_parameter<int>("camera_depth_unit", this->camera_depth_unit);
         this->declare_parameter<bool>("camera_use_color", this->camera_use_color);
         this->declare_parameter<bool>("camera_use_depth", this->camera_use_depth);
-
-        this->declare_parameter<std::string>("nodeName", this->nodeName);
-        this->declare_parameter<std::string>("qosService", this->qosService);
-        this->declare_parameter<std::string>("safetyService", this->safetyService);
-        this->declare_parameter<std::string>("timesyncService", this->timesyncService);
         this->_getParams();
     }
 };

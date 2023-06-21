@@ -38,7 +38,11 @@ def generate_launch_description():
                     "camera_depth_unit" : data['camera_prop']['depth_unit'], 
                     "camera_use_color" : data['camera_prop']['use_color'], 
                     "camera_use_depth" : data['camera_prop']['use_depth'], 
+
+                    # Settings for Params class under vehicle_interfaces/params.h
+                    # Do not change the settings rashly
                     "nodeName" : data['generic_prop']['nodeName'], 
+                    "id" : data['generic_prop']['id'], 
                     "qosService" : data['generic_prop']['qosService'], 
                     "safetyService" : data['generic_prop']['safetyService'], 
                     "timesyncService" : data['generic_prop']['timesyncService'], 
