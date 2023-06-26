@@ -98,6 +98,7 @@ class ZEDPublisher : public rclcpp::Node
 #endif
 {
 private:
+    std::shared_ptr<Params> params;
     rclcpp::Publisher<vehicle_interfaces::msg::Image>::SharedPtr RGBPub_;
     rclcpp::Publisher<vehicle_interfaces::msg::Image>::SharedPtr DepthPub_;
     std::string nodeName_;
@@ -135,11 +136,16 @@ private:
         msg.header.device_type = vehicle_interfaces::msg::Header::DEVTYPE_IMAGE;
         msg.header.device_id = this->nodeName_;
         msg.header.frame_id = frame_id++;
-        msg.header.stamp_type = vehicle_interfaces::msg::Header::STAMPTYPE_NONE_UTC_SYNC;
 #ifdef TS_MODE
+        msg.header.stamp_type = this->getTimestampType();
         msg.header.stamp = this->getTimestamp();
+        msg.header.stamp_offset = this->getCorrectDuration();
+        msg.header.ref_publish_time_ms = params->topic_ZEDCam_RGB_pubInterval_s * 1000.0;
 #else
+        msg.header.stamp_type = vehicle_interfaces::msg::Header::STAMPTYPE_NONE_UTC_SYNC;
         msg.header.stamp = this->get_clock()->now();
+        msg.header.stamp_offset = rclcpp::Duration(0, 0);
+        msg.header.ref_publish_time_ms = params->topic_ZEDCam_RGB_pubInterval_s * 1000.0;
 #endif
 
         msg.format_type = msg.FORMAT_JPEG;
@@ -164,12 +170,16 @@ private:
         msg.header.device_type = vehicle_interfaces::msg::Header::DEVTYPE_IMAGE;
         msg.header.device_id = this->nodeName_;
         msg.header.frame_id = frame_id++;
-        msg.header.stamp_type = vehicle_interfaces::msg::Header::STAMPTYPE_NONE_UTC_SYNC;
 #ifdef TS_MODE
+        msg.header.stamp_type = this->getTimestampType();
         msg.header.stamp = this->getTimestamp();
+        msg.header.stamp_offset = this->getCorrectDuration();
 #else
+        msg.header.stamp_type = vehicle_interfaces::msg::Header::STAMPTYPE_NONE_UTC_SYNC;
         msg.header.stamp = this->get_clock()->now();
+        msg.header.stamp_offset = rclcpp::Duration(0, 0);
 #endif
+        msg.header.ref_publish_time_ms = params->topic_ZEDCam_Depth_pubInterval_s * 1000.0;
 
         msg.format_type = msg.FORMAT_RAW;
         msg.cvmat_type = this->depthMatType_;
@@ -188,6 +198,7 @@ public:
         TimeSyncNode(params->nodeName, params->timesyncService, 10000, 2), 
 #endif
         rclcpp::Node(params->nodeName), 
+        params(params), 
         rgbMatInitF_(false), 
         depthMatInitF_(false)
     {
