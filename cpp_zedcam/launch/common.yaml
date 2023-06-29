@@ -2,15 +2,15 @@
 
 ---
 topic_ZEDCam_RGB:
-    nodeName : "zed_rgb_0_node" # Ignore
-    topicName : "zed_rgb_0"
+    nodeName : "zed_rgb" # Automatically formed to "<nodeName>_<id>_node"
+    topicName : "zed_rgb" # The _id number will added in suffix, i.e. "<topicName>_<id>"
     publishInterval_s : 0.033 # Publish rate in seconds
     width : 640 # Publish resolution
     height : 360
 
 topic_ZEDCam_Depth:
-    nodeName : "zed_depth_0_node" # Ignore
-    topicName : "zed_depth_0"
+    nodeName : "zed_depth" # Automatically formed to "<nodeName>_<id>_node"
+    topicName : "zed_depth" # The _id number will added in suffix, i.e. "<topicName>_<id>"
     publishInterval_s : 0.033 # Publish rate in seconds
     width : 640 # Publish resolution
     height : 360
@@ -35,3 +35,5 @@ generic_prop:
     qosService : "qos_0"
     safetyService : "safety_0"
     timesyncService : "timesync_0"
+    timesyncInterval_ms : 3000000.0
+    timesyncAccuracy_ms : 2.0

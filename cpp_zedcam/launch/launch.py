@@ -19,13 +19,13 @@ def generate_launch_description():
             emulate_tty=True,
             parameters=[
                 {
-                    "topic_ZEDCam_RGB_nodeName" : data['topic_ZEDCam_RGB']['nodeName'], 
-                    "topic_ZEDCam_RGB_topicName" : data['topic_ZEDCam_RGB']['topicName'], 
+                    "topic_ZEDCam_RGB_nodeName" : data['topic_ZEDCam_RGB']['nodeName'] + '_' + str(data['generic_prop']['id']) + '_node', 
+                    "topic_ZEDCam_RGB_topicName" : data['topic_ZEDCam_RGB']['topicName'] + '_' + str(data['generic_prop']['id']), 
                     "topic_ZEDCam_RGB_pubInterval_s" : data['topic_ZEDCam_RGB']['publishInterval_s'], 
                     "topic_ZEDCam_RGB_width" : data['topic_ZEDCam_RGB']['width'], 
                     "topic_ZEDCam_RGB_height" : data['topic_ZEDCam_RGB']['height'], 
-                    "topic_ZEDCam_Depth_nodeName" : data['topic_ZEDCam_Depth']['nodeName'], 
-                    "topic_ZEDCam_Depth_topicName" : data['topic_ZEDCam_Depth']['topicName'], 
+                    "topic_ZEDCam_Depth_nodeName" : data['topic_ZEDCam_Depth']['nodeName'] + '_' + str(data['generic_prop']['id']) + '_node', 
+                    "topic_ZEDCam_Depth_topicName" : data['topic_ZEDCam_Depth']['topicName'] + '_' + str(data['generic_prop']['id']), 
                     "topic_ZEDCam_Depth_pubInterval_s" : data['topic_ZEDCam_Depth']['publishInterval_s'], 
                     "topic_ZEDCam_Depth_width" : data['topic_ZEDCam_Depth']['width'], 
                     "topic_ZEDCam_Depth_height" : data['topic_ZEDCam_Depth']['height'], 
@@ -41,11 +41,13 @@ def generate_launch_description():
 
                     # Settings for Params class under vehicle_interfaces/params.h
                     # Do not change the settings rashly
-                    "nodeName" : data['generic_prop']['nodeName'], 
+                    "nodeName" : data['generic_prop']['nodeName'] + '_' + str(data['generic_prop']['id']) + '_node', 
                     "id" : data['generic_prop']['id'], 
                     "qosService" : data['generic_prop']['qosService'], 
                     "safetyService" : data['generic_prop']['safetyService'], 
                     "timesyncService" : data['generic_prop']['timesyncService'], 
+                    "timesyncInterval_ms" : data['generic_prop']['timesyncInterval_ms'], 
+                    "timesyncAccuracy_ms" : data['generic_prop']['timesyncAccuracy_ms'], 
                 }
             ]
         )

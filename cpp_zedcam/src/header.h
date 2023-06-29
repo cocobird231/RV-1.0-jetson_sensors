@@ -195,7 +195,7 @@ private:
 public:
     ZEDPublisher(std::shared_ptr<Params> params) : 
 #ifdef TS_MODE
-        TimeSyncNode(params->nodeName, params->timesyncService, 10000, 2), 
+        TimeSyncNode(params->nodeName, params->timesyncService, params->timesyncInterval_ms, params->timesyncAccuracy_ms), 
 #endif
         rclcpp::Node(params->nodeName), 
         params(params), 
