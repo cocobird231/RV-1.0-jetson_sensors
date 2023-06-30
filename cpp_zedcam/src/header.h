@@ -9,7 +9,7 @@
 
 #include <opencv2/opencv.hpp>
 
-#define TS_MODE// Enable timesync
+// #define TS_NODE// Enable timesync
 
 
 class Params : public vehicle_interfaces::GenericParams
@@ -91,8 +91,8 @@ public:
     }
 };
 
-#ifdef TS_MODE
-class ZEDPublisher : public TimeSyncNode
+#ifdef TS_NODE
+class ZEDPublisher : public vehicle_interfaces::TimeSyncNode
 #else
 class ZEDPublisher : public rclcpp::Node
 #endif
@@ -106,8 +106,8 @@ private:
     bool useColorF_;
     bool useDepthF_;
 
-    Timer* rgbTimer_;
-    Timer* depthTimer_;
+    vehicle_interfaces::Timer* rgbTimer_;
+    vehicle_interfaces::Timer* depthTimer_;
 
     std::vector<uchar> rgbMatVec_;
     cv::Size rgbMatSize_;
@@ -136,17 +136,16 @@ private:
         msg.header.device_type = vehicle_interfaces::msg::Header::DEVTYPE_IMAGE;
         msg.header.device_id = this->nodeName_;
         msg.header.frame_id = frame_id++;
-#ifdef TS_MODE
+#ifdef TS_NODE
         msg.header.stamp_type = this->getTimestampType();
         msg.header.stamp = this->getTimestamp();
-        msg.header.stamp_offset = this->getCorrectDuration();
-        msg.header.ref_publish_time_ms = params->topic_ZEDCam_RGB_pubInterval_s * 1000.0;
+        msg.header.stamp_offset = this->getCorrectDuration().nanoseconds();
 #else
         msg.header.stamp_type = vehicle_interfaces::msg::Header::STAMPTYPE_NONE_UTC_SYNC;
         msg.header.stamp = this->get_clock()->now();
-        msg.header.stamp_offset = rclcpp::Duration(0, 0);
-        msg.header.ref_publish_time_ms = params->topic_ZEDCam_RGB_pubInterval_s * 1000.0;
+        msg.header.stamp_offset = 0;
 #endif
+        msg.header.ref_publish_time_ms = this->params->topic_ZEDCam_RGB_pubInterval_s * 1000.0;
 
         msg.format_type = msg.FORMAT_JPEG;
         msg.cvmat_type = this->rgbMatType_;
@@ -170,16 +169,16 @@ private:
         msg.header.device_type = vehicle_interfaces::msg::Header::DEVTYPE_IMAGE;
         msg.header.device_id = this->nodeName_;
         msg.header.frame_id = frame_id++;
-#ifdef TS_MODE
+#ifdef TS_NODE
         msg.header.stamp_type = this->getTimestampType();
         msg.header.stamp = this->getTimestamp();
-        msg.header.stamp_offset = this->getCorrectDuration();
+        msg.header.stamp_offset = this->getCorrectDuration().nanoseconds();
 #else
         msg.header.stamp_type = vehicle_interfaces::msg::Header::STAMPTYPE_NONE_UTC_SYNC;
         msg.header.stamp = this->get_clock()->now();
-        msg.header.stamp_offset = rclcpp::Duration(0, 0);
+        msg.header.stamp_offset = 0;
 #endif
-        msg.header.ref_publish_time_ms = params->topic_ZEDCam_Depth_pubInterval_s * 1000.0;
+        msg.header.ref_publish_time_ms = this->params->topic_ZEDCam_Depth_pubInterval_s * 1000.0;
 
         msg.format_type = msg.FORMAT_RAW;
         msg.cvmat_type = this->depthMatType_;
@@ -194,7 +193,7 @@ private:
 
 public:
     ZEDPublisher(std::shared_ptr<Params> params) : 
-#ifdef TS_MODE
+#ifdef TS_NODE
         TimeSyncNode(params->nodeName, params->timesyncService, params->timesyncInterval_ms, params->timesyncAccuracy_ms), 
 #endif
         rclcpp::Node(params->nodeName), 
@@ -214,12 +213,12 @@ public:
         if (params->camera_use_color)
         {
             this->RGBPub_ = this->create_publisher<vehicle_interfaces::msg::Image>(params->topic_ZEDCam_RGB_topicName, 10);
-            this->rgbTimer_ = new Timer(params->topic_ZEDCam_RGB_pubInterval_s * 1000.0, std::bind(&ZEDPublisher::_rgbTimerCallback, this));
+            this->rgbTimer_ = new vehicle_interfaces::Timer(params->topic_ZEDCam_RGB_pubInterval_s * 1000.0, std::bind(&ZEDPublisher::_rgbTimerCallback, this));
         }
         if (params->camera_use_depth)
         {
             this->DepthPub_ = this->create_publisher<vehicle_interfaces::msg::Image>(params->topic_ZEDCam_Depth_topicName, 10);
-            this->depthTimer_ = new Timer(params->topic_ZEDCam_Depth_pubInterval_s * 1000.0, std::bind(&ZEDPublisher::_depthTimerCallback, this));
+            this->depthTimer_ = new vehicle_interfaces::Timer(params->topic_ZEDCam_Depth_pubInterval_s * 1000.0, std::bind(&ZEDPublisher::_depthTimerCallback, this));
         }
     }
 
