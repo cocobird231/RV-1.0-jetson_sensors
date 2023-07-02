@@ -4,13 +4,9 @@
 
 #include "rclcpp/rclcpp.hpp"
 #include "vehicle_interfaces/msg/image.hpp"
-#include "vehicle_interfaces/params.h"
-#include "vehicle_interfaces/timesync.h"
+#include "vehicle_interfaces/vehicle_interfaces.h"
 
 #include <opencv2/opencv.hpp>
-
-// #define TS_NODE// Enable timesync
-
 
 class Params : public vehicle_interfaces::GenericParams
 {
@@ -91,11 +87,8 @@ public:
     }
 };
 
-#ifdef TS_NODE
-class ZEDPublisher : public vehicle_interfaces::TimeSyncNode
-#else
-class ZEDPublisher : public rclcpp::Node
-#endif
+
+class ZEDPublisher : public vehicle_interfaces::VehicleServiceNode
 {
 private:
     std::shared_ptr<Params> params;
@@ -136,15 +129,9 @@ private:
         msg.header.device_type = vehicle_interfaces::msg::Header::DEVTYPE_IMAGE;
         msg.header.device_id = this->nodeName_;
         msg.header.frame_id = frame_id++;
-#ifdef TS_NODE
         msg.header.stamp_type = this->getTimestampType();
         msg.header.stamp = this->getTimestamp();
         msg.header.stamp_offset = this->getCorrectDuration().nanoseconds();
-#else
-        msg.header.stamp_type = vehicle_interfaces::msg::Header::STAMPTYPE_NONE_UTC_SYNC;
-        msg.header.stamp = this->get_clock()->now();
-        msg.header.stamp_offset = 0;
-#endif
         msg.header.ref_publish_time_ms = this->params->topic_ZEDCam_RGB_pubInterval_s * 1000.0;
 
         msg.format_type = msg.FORMAT_JPEG;
@@ -169,15 +156,9 @@ private:
         msg.header.device_type = vehicle_interfaces::msg::Header::DEVTYPE_IMAGE;
         msg.header.device_id = this->nodeName_;
         msg.header.frame_id = frame_id++;
-#ifdef TS_NODE
         msg.header.stamp_type = this->getTimestampType();
         msg.header.stamp = this->getTimestamp();
         msg.header.stamp_offset = this->getCorrectDuration().nanoseconds();
-#else
-        msg.header.stamp_type = vehicle_interfaces::msg::Header::STAMPTYPE_NONE_UTC_SYNC;
-        msg.header.stamp = this->get_clock()->now();
-        msg.header.stamp_offset = 0;
-#endif
         msg.header.ref_publish_time_ms = this->params->topic_ZEDCam_Depth_pubInterval_s * 1000.0;
 
         msg.format_type = msg.FORMAT_RAW;
@@ -192,10 +173,8 @@ private:
     }
 
 public:
-    ZEDPublisher(std::shared_ptr<Params> params) : 
-#ifdef TS_NODE
-        TimeSyncNode(params->nodeName, params->timesyncService, params->timesyncInterval_ms, params->timesyncAccuracy_ms), 
-#endif
+    ZEDPublisher(const std::shared_ptr<Params>& params) : 
+        vehicle_interfaces::VehicleServiceNode(params), 
         rclcpp::Node(params->nodeName), 
         params(params), 
         rgbMatInitF_(false), 
