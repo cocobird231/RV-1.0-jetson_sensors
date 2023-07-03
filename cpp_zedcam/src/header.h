@@ -91,10 +91,9 @@ public:
 class ZEDPublisher : public vehicle_interfaces::VehicleServiceNode
 {
 private:
-    std::shared_ptr<Params> params;
+    std::shared_ptr<Params> params_;
     rclcpp::Publisher<vehicle_interfaces::msg::Image>::SharedPtr RGBPub_;
     rclcpp::Publisher<vehicle_interfaces::msg::Image>::SharedPtr DepthPub_;
-    std::string nodeName_;
 
     bool useColorF_;
     bool useDepthF_;
@@ -127,12 +126,12 @@ private:
         auto msg = vehicle_interfaces::msg::Image();
         msg.header.priority = vehicle_interfaces::msg::Header::PRIORITY_SENSOR;
         msg.header.device_type = vehicle_interfaces::msg::Header::DEVTYPE_IMAGE;
-        msg.header.device_id = this->nodeName_;
+        msg.header.device_id = this->params_->nodeName;
         msg.header.frame_id = frame_id++;
         msg.header.stamp_type = this->getTimestampType();
         msg.header.stamp = this->getTimestamp();
         msg.header.stamp_offset = this->getCorrectDuration().nanoseconds();
-        msg.header.ref_publish_time_ms = this->params->topic_ZEDCam_RGB_pubInterval_s * 1000.0;
+        msg.header.ref_publish_time_ms = this->params_->topic_ZEDCam_RGB_pubInterval_s * 1000.0;
 
         msg.format_type = msg.FORMAT_JPEG;
         msg.cvmat_type = this->rgbMatType_;
@@ -154,12 +153,12 @@ private:
         auto msg = vehicle_interfaces::msg::Image();
         msg.header.priority = vehicle_interfaces::msg::Header::PRIORITY_SENSOR;
         msg.header.device_type = vehicle_interfaces::msg::Header::DEVTYPE_IMAGE;
-        msg.header.device_id = this->nodeName_;
+        msg.header.device_id = this->params_->nodeName;
         msg.header.frame_id = frame_id++;
         msg.header.stamp_type = this->getTimestampType();
         msg.header.stamp = this->getTimestamp();
         msg.header.stamp_offset = this->getCorrectDuration().nanoseconds();
-        msg.header.ref_publish_time_ms = this->params->topic_ZEDCam_Depth_pubInterval_s * 1000.0;
+        msg.header.ref_publish_time_ms = this->params_->topic_ZEDCam_Depth_pubInterval_s * 1000.0;
 
         msg.format_type = msg.FORMAT_RAW;
         msg.cvmat_type = this->depthMatType_;
@@ -176,11 +175,10 @@ public:
     ZEDPublisher(const std::shared_ptr<Params>& params) : 
         vehicle_interfaces::VehicleServiceNode(params), 
         rclcpp::Node(params->nodeName), 
-        params(params), 
+        params_(params), 
         rgbMatInitF_(false), 
         depthMatInitF_(false)
     {
-        this->nodeName_ = params->nodeName;
         this->useColorF_ = params->camera_use_color;
         this->useDepthF_ = params->camera_use_depth;
 
