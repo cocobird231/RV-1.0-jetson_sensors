@@ -58,7 +58,7 @@ if ls zed-install.run &> /dev/null
 then
     echo "Start ZED SDK installation..."
     sudo chmod a+x zed-install.run
-    sh zed-install.run
+    ./zed-install.run -- silent skip_od_module skip_python skip_hub skip_tools
 else
     echo "zed-install.run not found. Exiting..."
     exit 1
