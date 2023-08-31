@@ -13,13 +13,13 @@ class Params : public vehicle_interfaces::GenericParams
 public:
     std::string topic_ZEDCam_RGB_nodeName = "zed_rgb_0_node";
     std::string topic_ZEDCam_RGB_topicName = "zed_rgb_0";
-    float topic_ZEDCam_RGB_pubInterval_s = 0.03;
+    float topic_ZEDCam_RGB_pubInterval_s = 0.033;
     int topic_ZEDCam_RGB_width = 640;
     int topic_ZEDCam_RGB_height = 360;
 
     std::string topic_ZEDCam_Depth_nodeName = "zed_depth_0_node";
     std::string topic_ZEDCam_Depth_topicName = "zed_depth_0";
-    float topic_ZEDCam_Depth_pubInterval_s = 0.03;
+    float topic_ZEDCam_Depth_pubInterval_s = 0.033;
     int topic_ZEDCam_Depth_width = 640;
     int topic_ZEDCam_Depth_height = 360;
 
@@ -171,6 +171,27 @@ private:
         this->DepthPub_->publish(msg);
     }
 
+    void _qosCallback(std::map<std::string, rclcpp::QoS*> qmap)
+    {
+        for (const auto& [k, v] : qmap)
+        {
+            if (k == this->params_->topic_ZEDCam_RGB_topicName || k == (std::string)this->get_namespace() + "/" + this->params_->topic_ZEDCam_RGB_topicName)
+            {
+                this->rgbTimer_->stop();
+                this->RGBPub_.reset();// Call destructor
+                this->RGBPub_ = this->create_publisher<vehicle_interfaces::msg::Image>(this->params_->topic_ZEDCam_RGB_topicName, *v);
+                this->rgbTimer_->start();
+            }
+            else if (k == this->params_->topic_ZEDCam_Depth_topicName || k == (std::string)this->get_namespace() + "/" + this->params_->topic_ZEDCam_Depth_topicName)
+            {
+                this->depthTimer_->stop();
+                this->DepthPub_.reset();// Call destructor
+                this->DepthPub_ = this->create_publisher<vehicle_interfaces::msg::Image>(this->params_->topic_ZEDCam_Depth_topicName, *v);
+                this->depthTimer_->start();
+            }
+        }
+    }
+
 public:
     ZEDPublisher(const std::shared_ptr<Params>& params) : 
         vehicle_interfaces::VehicleServiceNode(params), 
@@ -182,19 +203,32 @@ public:
         this->useColorF_ = params->camera_use_color;
         this->useDepthF_ = params->camera_use_depth;
 
-        // rclcpp::QoS depth_qos(10);
-        // depth_qos.keep_last(1);
-        // depth_qos.best_effort();
-        // depth_qos.durability_volatile();
+        this->addQoSCallbackFunc(std::bind(&ZEDPublisher::_qosCallback, this, std::placeholders::_1));
 
         if (params->camera_use_color)
         {
-            this->RGBPub_ = this->create_publisher<vehicle_interfaces::msg::Image>(params->topic_ZEDCam_RGB_topicName, 10);
+            vehicle_interfaces::QoSPair qpair = this->addQoSTracking(params->topic_ZEDCam_RGB_topicName);
+            if (qpair.first == "")
+                RCLCPP_ERROR(this->get_logger(), "[ZEDPublisher] Failed to add topic to track list: %s", params->topic_ZEDCam_RGB_topicName);
+            else
+            {
+                RCLCPP_INFO(this->get_logger(), "[ZEDPublisher] QoS profile [%s]:\nDepth: %d\nReliability: %d", 
+                    qpair.first.c_str(), qpair.second->get_rmw_qos_profile().depth, qpair.second->get_rmw_qos_profile().reliability);
+            }
+            this->RGBPub_ = this->create_publisher<vehicle_interfaces::msg::Image>(params->topic_ZEDCam_RGB_topicName, *qpair.second);
             this->rgbTimer_ = new vehicle_interfaces::Timer(params->topic_ZEDCam_RGB_pubInterval_s * 1000.0, std::bind(&ZEDPublisher::_rgbTimerCallback, this));
         }
         if (params->camera_use_depth)
         {
-            this->DepthPub_ = this->create_publisher<vehicle_interfaces::msg::Image>(params->topic_ZEDCam_Depth_topicName, 10);
+            vehicle_interfaces::QoSPair qpair = this->addQoSTracking(params->topic_ZEDCam_Depth_topicName);
+            if (qpair.first == "")
+                RCLCPP_ERROR(this->get_logger(), "[ZEDPublisher] Failed to add topic to track list: %s", params->topic_ZEDCam_Depth_topicName);
+            else
+            {
+                RCLCPP_INFO(this->get_logger(), "[ZEDPublisher] QoS profile [%s]:\nDepth: %d\nReliability: %d", 
+                    qpair.first.c_str(), qpair.second->get_rmw_qos_profile().depth, qpair.second->get_rmw_qos_profile().reliability);
+            }
+            this->DepthPub_ = this->create_publisher<vehicle_interfaces::msg::Image>(params->topic_ZEDCam_Depth_topicName, *qpair.second);
             this->depthTimer_ = new vehicle_interfaces::Timer(params->topic_ZEDCam_Depth_pubInterval_s * 1000.0, std::bind(&ZEDPublisher::_depthTimerCallback, this));
         }
     }

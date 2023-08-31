@@ -32,7 +32,7 @@ jetson_ver=$(echo $jetson_vers | grep -Po '^(\d+\.\d+)(\.\d+)?')
 jetson_main_ver=$(echo $jetson_ver | grep -Po '^(\d+\.\d+)')
 
 # Remove old zed-install.run and grab new one from https://www.stereolabs.com/developers/release/
-sudo apt install zstd
+sudo apt install zstd -y
 rm -rf zed-install.run
 if [ "$jetson_main_ver" == "4.6" ]
 then
@@ -66,4 +66,7 @@ fi
 
 # Install OpenCV
 echo "Start OpenCV installation..."
-sudo apt install libopencv-dev
+sudo apt install libopencv-dev -y
+
+# Install dependencies
+sudo apt install nlohmann-json3-dev -y

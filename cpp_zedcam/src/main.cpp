@@ -27,6 +27,7 @@ int main(int argc, char** argv)
     rclcpp::init(argc, argv);
     auto params = std::make_shared<Params>("zed_params_node");
     auto zedPub = std::make_shared<ZEDPublisher>(params);
+    std::thread zedPubTh = std::thread(SpinNode, zedPub, "zedPubTh");
 
     /*
      * ZED camera settings
@@ -157,7 +158,8 @@ int main(int argc, char** argv)
             return EXIT_FAILURE;
         }
     }
-    rclcpp::shutdown();
+    zedPubTh.join();
     zed.close();
+    rclcpp::shutdown();
     return EXIT_SUCCESS;
 }
