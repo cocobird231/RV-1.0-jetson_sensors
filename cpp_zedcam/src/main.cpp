@@ -1,5 +1,8 @@
-#include "header.h"
+#include <map>
+
 #include <sl/Camera.hpp>
+
+#include "header.h"
 
 cv::Mat slMat2cvMat(sl::Mat& input)
 {
@@ -22,20 +25,127 @@ cv::Mat slMat2cvMat(sl::Mat& input)
 	return cv::Mat(input.getHeight(), input.getWidth(), cv_type, input.getPtr<sl::uchar1>(sl::MEM::CPU));
 }
 
+void RunZEDProc(sl::Camera& zed, std::shared_ptr<ZEDNode> node, int topicID, bool& stopF)
+{
+    // Set runtime parameters after opening the camera
+    auto params = node->getParams();
+    sl::RuntimeParameters runtime_parameters;
+    if (params->camera_sensing_mode == 0)// Standard mode
+        // runtime_parameters.sensing_mode = sl::SENSING_MODE::STANDARD;// SDK ver 3.8
+        runtime_parameters.enable_fill_mode = false;
+    else if (params->camera_sensing_mode == 1)// Fill mode
+        // runtime_parameters.sensing_mode = sl::SENSING_MODE::FILL;// SDK ver 3.8
+        runtime_parameters.enable_fill_mode = true;
+    
+    sl::Mat rgbslMat, depthslMat;
+    cv::Mat rgbMat, depthMat;
+
+    // TODO: add ZED grab process and ROS2 publish process
+    sl::Resolution pubRGBImgSize(params->topic_ZEDCam_RGB_width, params->topic_ZEDCam_RGB_height);
+    sl::Resolution pubDepthImgSize(params->topic_ZEDCam_Depth_width, params->topic_ZEDCam_Depth_height);
+
+    std::vector<int> encodeParam;
+    encodeParam.push_back(cv::IMWRITE_JPEG_QUALITY);
+    encodeParam.push_back(70);
+    std::vector<uchar> pubRGBImgVec;
+    std::vector<uchar> pubDepthImgVec;
+
+    // Check ZED opened
+    while (!zed.isOpened() && !stopF)
+        std::this_thread::sleep_for(1s);
+    
+    if (stopF)
+        return;
+
+    // Grab image to check resolution
+    if (zed.grab(runtime_parameters) == sl::ERROR_CODE::SUCCESS)
+    {
+        if (params->camera_use_color)
+        {
+            zed.retrieveImage(rgbslMat, sl::VIEW::LEFT, sl::MEM::CPU, pubRGBImgSize);
+            if (rgbslMat.getResolution() != pubRGBImgSize)
+                printf("The RGB image will be resized into %dx%d. Current size: %ldx%ld\n", 
+                    pubRGBImgSize.width, pubRGBImgSize.height, rgbslMat.getWidth(), rgbslMat.getHeight());
+        }
+        if (params->camera_use_depth)
+        {
+            zed.retrieveMeasure(depthslMat, sl::MEASURE::DEPTH, sl::MEM::CPU, pubDepthImgSize);
+            if (depthslMat.getResolution() != pubDepthImgSize)
+                printf("The Depth image will be resized into %dx%d. Current size: %ldx%ld\n", 
+                    pubDepthImgSize.width, pubDepthImgSize.height, depthslMat.getWidth(), depthslMat.getHeight());
+        }
+    }
+    else
+    {
+        std::cerr << "Unable to retrieve image\n";
+        zed.close();
+        return;
+    }
+
+    // Loop to grab image
+    while (zed.isOpened() && !stopF)
+    {
+        // Grab image from ZED camera
+        if (zed.grab(runtime_parameters) == sl::ERROR_CODE::SUCCESS)
+        {
+            if (params->camera_use_color)
+            {
+                zed.retrieveImage(rgbslMat, sl::VIEW::LEFT, sl::MEM::CPU, pubRGBImgSize);
+                rgbMat = slMat2cvMat(rgbslMat);
+            }
+            if (params->camera_use_depth)
+            {
+                zed.retrieveMeasure(depthslMat, sl::MEASURE::DEPTH, sl::MEM::CPU, pubDepthImgSize);
+                //depthMat = slMat2cvMat(depthslMat);
+            }
+
+            // Process image size and publish to ROS2 topic
+            auto& pub = node->getZEDPublisher(topicID);
+            if (params->camera_use_color)
+            {
+                cv::imencode(".jpg", rgbMat, pubRGBImgVec, encodeParam);
+                pub->pubRGBMat(pubRGBImgVec, rgbMat.size(), rgbMat.type());
+            }
+            if (params->camera_use_depth)
+            {
+                uint32_t step = depthslMat.getStepBytes();
+                size_t size = step * depthslMat.getHeight();
+                uint8_t * data_ptr = nullptr;
+                if (depthslMat.getDataType() == sl::MAT_TYPE::F32_C1)
+                {
+                    data_ptr = reinterpret_cast<uint8_t *>(depthslMat.getPtr<sl::float1>());
+                    pubDepthImgVec = std::vector<uint8_t>(data_ptr, data_ptr + size);
+                    pub->pubDepthMat(pubDepthImgVec, cv::Size(depthslMat.getWidth(), depthslMat.getHeight()), CV_32FC1, params->camera_depth_unit);
+                }
+            }
+        }
+        else
+        {
+            std::cerr << "Unable to retrieve image\n";
+            zed.close();
+            return;
+        }
+    }
+}
+
 int main(int argc, char** argv)
 {
     rclcpp::init(argc, argv);
-    auto params = std::make_shared<Params>("zed_params_node");
-    auto zedPub = std::make_shared<ZEDPublisher>(params);
-    std::thread zedPubTh = std::thread(SpinNode, zedPub, "zedPubTh");
 
-    /*
+    auto params = std::make_shared<Params>("zed_params_node");
+    if (params->ids.size() != params->camera_cap_ids.size())
+    {
+        RCLCPP_ERROR(params->get_logger(), "[main] params->ids.size() != params->camera_cap_ids.size()");
+        return EXIT_FAILURE;
+    }
+
+    auto zedNode = std::make_shared<ZEDNode>(params);
+    std::thread zedNodeTh = std::thread(vehicle_interfaces::SpinNode, zedNode, "zedNodeTh");
+
+    /**
      * ZED camera settings
      * ref: https://github.com/stereolabs/zed-examples/blob/master/tutorials/tutorial%203%20-%20depth%20sensing/cpp/main.cpp
-     */
-    sl::Camera zed;
-
-    // Set configuration parameters
+    */
     sl::InitParameters init_parameters;
     init_parameters.camera_resolution = sl::RESOLUTION::HD720;
     if (params->camera_height >= 1080)
@@ -57,109 +167,63 @@ int main(int argc, char** argv)
     else if (params->camera_depth_unit == 3)// Unit: meter
         init_parameters.coordinate_units = sl::UNIT::METER;
     
-    // Open the camera
-    sl::ERROR_CODE returned_state = zed.open(init_parameters);
-    if (returned_state != sl::ERROR_CODE::SUCCESS)
+    init_parameters.camera_fps = params->camera_fps;
+
+    // Search available ZED camera
+    std::vector<sl::DeviceProperties> zedDevList = sl::Camera::getDeviceList();
+    std::map<int, int> zedIDs;// {zedID, topicID}
+    for (auto& i : zedDevList)
     {
-        std::cout << "Error " << returned_state << ", exit program." << std::endl;
-        return EXIT_FAILURE;
-    }
-
-    // Set runtime parameters after opening the camera
-    sl::RuntimeParameters runtime_parameters;
-    if (params->camera_sensing_mode == 0)// Standard mode
-        // runtime_parameters.sensing_mode = sl::SENSING_MODE::STANDARD;// SDK ver 3.8
-        runtime_parameters.enable_fill_mode = false;
-    else if (params->camera_sensing_mode == 1)// Fill mode
-        // runtime_parameters.sensing_mode = sl::SENSING_MODE::FILL;// SDK ver 3.8
-        runtime_parameters.enable_fill_mode = true;
-    
-    sl::Mat rgbslMat, depthslMat;
-    /*
-     * ZED camera settings end
-     */
-
-
-    sl::Resolution pubRGBImgSize(params->topic_ZEDCam_RGB_width, params->topic_ZEDCam_RGB_height);
-    sl::Resolution pubDepthImgSize(params->topic_ZEDCam_Depth_width, params->topic_ZEDCam_Depth_height);
-    cv::Mat rgbMat, depthMat;
-
-    std::vector<int> encodeParam;
-    encodeParam.push_back(cv::IMWRITE_JPEG_QUALITY);
-    encodeParam.push_back(70);
-    std::vector<uchar> pubRGBImgVec;
-    std::vector<uchar> pubDepthImgVec;
-
-    if (zed.grab(runtime_parameters) == sl::ERROR_CODE::SUCCESS)
-    {
-        if (params->camera_use_color)
+        std::cout << i.camera_model << "\n";
+        std::cout << i.camera_state << "\n";
+        std::cout << i.id << "\n";
+        std::cout << i.path << "\n";
+        std::cout << i.serial_number << "\n";
+        for (int j = 0; j < params->camera_cap_ids.size(); j++)
         {
-            zed.retrieveImage(rgbslMat, sl::VIEW::LEFT, sl::MEM::CPU, pubRGBImgSize);
-            if (rgbslMat.getResolution() != pubRGBImgSize)
-                printf("The RGB image will be resized into %dx%d. Current size: %ldx%ld\n", 
-                    pubRGBImgSize.width, pubRGBImgSize.height, rgbslMat.getWidth(), rgbslMat.getHeight());
-            zedPub->startRGBPub();
-        }
-        if (params->camera_use_depth)
-        {
-            zed.retrieveMeasure(depthslMat, sl::MEASURE::DEPTH, sl::MEM::CPU, pubDepthImgSize);
-            if (depthslMat.getResolution() != pubDepthImgSize)
-                printf("The Depth image will be resized into %dx%d. Current size: %ldx%ld\n", 
-                    pubDepthImgSize.width, pubDepthImgSize.height, depthslMat.getWidth(), depthslMat.getHeight());
-            zedPub->startDepthPub();
+            if (i.id == static_cast<int>(params->camera_cap_ids[j]))
+            {
+                zedIDs[i.id] = static_cast<int>(params->ids[j]);
+                break;
+            }
         }
     }
-    else
-    {
-        std::cerr << "Unable to retrieve image\n";
-        zed.close();
-        return EXIT_FAILURE;
-    }
 
-    while (1)
+    // Open ZED cameras
+    bool stopF = false;
+    std::vector<std::thread> zedThVec;
+    std::map<int, sl::Camera> zeds;// {zedID, sl::Camera}
+    for (auto& [zedID, topicID] : zedIDs)
     {
-        // Grab image from ZED camera
-        if (zed.grab(runtime_parameters) == sl::ERROR_CODE::SUCCESS)
+        auto zParams = init_parameters;
+        zParams.input.setFromCameraID(zedID);
+        zeds[zedID] = sl::Camera();
+        sl::ERROR_CODE returned_state = zeds[zedID].open(zParams);
+        if (returned_state == sl::ERROR_CODE::SUCCESS)
         {
-            if (params->camera_use_color)
-            {
-                zed.retrieveImage(rgbslMat, sl::VIEW::LEFT, sl::MEM::CPU, pubRGBImgSize);
-                rgbMat = slMat2cvMat(rgbslMat);
-            }
-            if (params->camera_use_depth)
-            {
-                zed.retrieveMeasure(depthslMat, sl::MEASURE::DEPTH, sl::MEM::CPU, pubDepthImgSize);
-                //depthMat = slMat2cvMat(depthslMat);
-            }
-
-            // Process image size and publish to ROS2 topic
-            if (params->camera_use_color)
-            {
-                cv::imencode(".jpg", rgbMat, pubRGBImgVec, encodeParam);
-                zedPub->setRGBMat(pubRGBImgVec, rgbMat.size(), rgbMat.type());
-            }
-            if (params->camera_use_depth)
-            {
-                uint32_t step = depthslMat.getStepBytes();
-                size_t size = step * depthslMat.getHeight();
-                uint8_t * data_ptr = nullptr;
-                if (depthslMat.getDataType() == sl::MAT_TYPE::F32_C1)
-                {
-                    data_ptr = reinterpret_cast<uint8_t *>(depthslMat.getPtr<sl::float1>());
-                    pubDepthImgVec = std::vector<uint8_t>(data_ptr, data_ptr + size);
-                    zedPub->setDepthMat(pubDepthImgVec, cv::Size(depthslMat.getWidth(), depthslMat.getHeight()), CV_32FC1, params->camera_depth_unit);
-                }
-            }
+            zedNode->addZEDPublisher(topicID);
+            zedThVec.emplace_back(RunZEDProc, std::ref(zeds[zedID]), zedNode, topicID, std::ref(stopF));
+            std::cout << "ZED " << zedID << " will be related to topic " << topicID << "\n";
         }
         else
         {
-            std::cerr << "Unable to retrieve image\n";
-            zed.close();
-            return EXIT_FAILURE;
+            std::cout << "ZED " << zedID << " Error " << returned_state << ", ignore.\n";
+            zeds.erase(zedID);
         }
     }
-    zedPubTh.join();
-    zed.close();
+
+    // Main loop for exit key detect
+    while (cv::waitKey(100) % 256 != 27)
+        std::this_thread::yield();
+    
+    stopF = true;
+
+    for (auto& i : zedThVec)
+        i.join();
+    
+    for (auto& [id, zed] : zeds)
+        zed.close();
+    
     rclcpp::shutdown();
     return EXIT_SUCCESS;
 }

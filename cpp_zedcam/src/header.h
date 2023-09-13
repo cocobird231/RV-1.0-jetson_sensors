@@ -4,6 +4,7 @@
 
 #include "rclcpp/rclcpp.hpp"
 #include "vehicle_interfaces/msg/image.hpp"
+#include "vehicle_interfaces/utils.h"
 #include "vehicle_interfaces/vehicle_interfaces.h"
 
 #include <opencv2/opencv.hpp>
@@ -23,7 +24,7 @@ public:
     int topic_ZEDCam_Depth_width = 640;
     int topic_ZEDCam_Depth_height = 360;
 
-    int camera_cap_id = 0;
+    std::vector<double> camera_cap_ids = { 0 };
     float camera_fps = 30.0;
     int camera_width = 1280;
     int camera_height = 720;
@@ -32,6 +33,8 @@ public:
     int camera_depth_unit = 1;// index started from 0: micro, milli, centi, meter
     bool camera_use_color = true;
     bool camera_use_depth = true;
+
+    std::vector<double> ids = { 0 };
 
 private:
     void _getParams()
@@ -48,7 +51,7 @@ private:
         this->get_parameter("topic_ZEDCam_Depth_width", this->topic_ZEDCam_Depth_width);
         this->get_parameter("topic_ZEDCam_Depth_height", this->topic_ZEDCam_Depth_height);
 
-        this->get_parameter("camera_cap_id", this->camera_cap_id);
+        this->get_parameter("camera_cap_ids", this->camera_cap_ids);
         this->get_parameter("camera_fps", this->camera_fps);
         this->get_parameter("camera_width", this->camera_width);
         this->get_parameter("camera_height", this->camera_height);
@@ -57,6 +60,8 @@ private:
         this->get_parameter("camera_depth_unit", this->camera_depth_unit);
         this->get_parameter("camera_use_color", this->camera_use_color);
         this->get_parameter("camera_use_depth", this->camera_use_depth);
+
+        this->get_parameter("ids", this->ids);
     }
 
 public:
@@ -74,7 +79,7 @@ public:
         this->declare_parameter<int>("topic_ZEDCam_Depth_width", this->topic_ZEDCam_Depth_width);
         this->declare_parameter<int>("topic_ZEDCam_Depth_height", this->topic_ZEDCam_Depth_height);
 
-        this->declare_parameter<int>("camera_cap_id", this->camera_cap_id);
+        this->declare_parameter<std::vector<double> >("camera_cap_ids", this->camera_cap_ids);
         this->declare_parameter<float>("camera_fps", this->camera_fps);
         this->declare_parameter<int>("camera_width", this->camera_width);
         this->declare_parameter<int>("camera_height", this->camera_height);
@@ -83,207 +88,218 @@ public:
         this->declare_parameter<int>("camera_depth_unit", this->camera_depth_unit);
         this->declare_parameter<bool>("camera_use_color", this->camera_use_color);
         this->declare_parameter<bool>("camera_use_depth", this->camera_use_depth);
+
+        this->declare_parameter<std::vector<double> >("ids", this->ids);
         this->_getParams();
     }
 };
 
 
-class ZEDPublisher : public vehicle_interfaces::VehicleServiceNode
+class ZEDPublisher : public vehicle_interfaces::PseudoTimeSyncNode, public vehicle_interfaces::QoSUpdateNode
 {
 private:
-    std::shared_ptr<Params> params_;
-    rclcpp::Publisher<vehicle_interfaces::msg::Image>::SharedPtr RGBPub_;
-    rclcpp::Publisher<vehicle_interfaces::msg::Image>::SharedPtr DepthPub_;
-
+    std::string nodeName_;
+    int id_;
+    std::string rgbTopicName_;
+    std::string depthTopicName_;
+    float rgbPubPeriod_;
+    float depthPubPeriod_;
+    std::mutex paramsLock_;
+    
+    rclcpp::Publisher<vehicle_interfaces::msg::Image>::SharedPtr rgbPub_;
+    std::mutex rgbLock_;
     bool useColorF_;
+
+    rclcpp::Publisher<vehicle_interfaces::msg::Image>::SharedPtr depthPub_;
+    std::mutex depthLock_;
     bool useDepthF_;
 
-    vehicle_interfaces::Timer* rgbTimer_;
-    vehicle_interfaces::Timer* depthTimer_;
-
-    std::vector<uchar> rgbMatVec_;
-    cv::Size rgbMatSize_;
-    int rgbMatType_;
-    bool rgbMatInitF_;
-
-    std::vector<uchar> depthMatVec_;
-    cv::Size depthMatSize_;
-    int depthMatType_;
-    int depthUnitType_;
-    bool depthMatInitF_;
-
-    std::mutex rgbLock_;
-    std::mutex depthLock_;
-
 private:
-    void _rgbTimerCallback()
+    template <typename T>
+    void _safeSave(T* ptr, const T value, std::mutex& lock)
     {
-        static u_int64_t frame_id = 0;
-        if (!this->rgbMatInitF_)
-            return;
-        std::unique_lock<std::mutex> locker(this->rgbLock_, std::defer_lock);
-        locker.lock();
-        auto msg = vehicle_interfaces::msg::Image();
-        msg.header.priority = vehicle_interfaces::msg::Header::PRIORITY_SENSOR;
-        msg.header.device_type = vehicle_interfaces::msg::Header::DEVTYPE_IMAGE;
-        msg.header.device_id = this->params_->nodeName;
-        msg.header.frame_id = frame_id++;
-        msg.header.stamp_type = this->getTimestampType();
-        msg.header.stamp = this->getTimestamp();
-        msg.header.stamp_offset = this->getCorrectDuration().nanoseconds();
-        msg.header.ref_publish_time_ms = this->params_->topic_ZEDCam_RGB_pubInterval_s * 1000.0;
-
-        msg.format_type = msg.FORMAT_JPEG;
-        msg.cvmat_type = this->rgbMatType_;
-        msg.width = this->rgbMatSize_.width;
-        msg.height = this->rgbMatSize_.height;
-        msg.data = this->rgbMatVec_;
-        locker.unlock();
-
-        this->RGBPub_->publish(msg);
+        std::lock_guard<std::mutex> _lock(lock);
+        *ptr = value;
     }
 
-    void _depthTimerCallback()
+    template <typename T>
+    T _safeCall(const T* ptr, std::mutex& lock)
     {
-        static u_int64_t frame_id = 0;
-        if (!this->depthMatInitF_)
-            return;
-        std::unique_lock<std::mutex> locker(this->depthLock_, std::defer_lock);
-        locker.lock();
-        auto msg = vehicle_interfaces::msg::Image();
-        msg.header.priority = vehicle_interfaces::msg::Header::PRIORITY_SENSOR;
-        msg.header.device_type = vehicle_interfaces::msg::Header::DEVTYPE_IMAGE;
-        msg.header.device_id = this->params_->nodeName;
-        msg.header.frame_id = frame_id++;
-        msg.header.stamp_type = this->getTimestampType();
-        msg.header.stamp = this->getTimestamp();
-        msg.header.stamp_offset = this->getCorrectDuration().nanoseconds();
-        msg.header.ref_publish_time_ms = this->params_->topic_ZEDCam_Depth_pubInterval_s * 1000.0;
-
-        msg.format_type = msg.FORMAT_RAW;
-        msg.cvmat_type = this->depthMatType_;
-        msg.depth_unit_type = this->depthUnitType_;
-        msg.width = this->depthMatSize_.width;
-        msg.height = this->depthMatSize_.height;
-        msg.data = this->depthMatVec_;
-        locker.unlock();
-
-        this->DepthPub_->publish(msg);
+        std::lock_guard<std::mutex> _lock(lock);
+        return *ptr;
     }
 
     void _qosCallback(std::map<std::string, rclcpp::QoS*> qmap)
     {
+        std::unique_lock<std::mutex> rgbLocker(this->rgbLock_, std::defer_lock);
+        std::unique_lock<std::mutex> depthLocker(this->depthLock_, std::defer_lock);
+        std::unique_lock<std::mutex> paramsLocker(this->paramsLock_, std::defer_lock);
+        paramsLocker.lock();
+        auto rgbTopicName = this->rgbTopicName_;
+        auto depthTopicName = this->depthTopicName_;
+        paramsLocker.unlock();
+
         for (const auto& [k, v] : qmap)
         {
-            if (k == this->params_->topic_ZEDCam_RGB_topicName || k == (std::string)this->get_namespace() + "/" + this->params_->topic_ZEDCam_RGB_topicName)
+            if (k == rgbTopicName || k == (std::string)this->get_namespace() + "/" + rgbTopicName)
             {
-                this->rgbTimer_->stop();
-                this->RGBPub_.reset();// Call destructor
-                this->RGBPub_ = this->create_publisher<vehicle_interfaces::msg::Image>(this->params_->topic_ZEDCam_RGB_topicName, *v);
-                this->rgbTimer_->start();
+                rgbLocker.lock();
+                this->rgbPub_.reset();// Call destructor
+                this->rgbPub_ = this->create_publisher<vehicle_interfaces::msg::Image>(rgbTopicName, *v);
+                rgbLocker.unlock();
             }
-            else if (k == this->params_->topic_ZEDCam_Depth_topicName || k == (std::string)this->get_namespace() + "/" + this->params_->topic_ZEDCam_Depth_topicName)
+            else if (k == depthTopicName || k == (std::string)this->get_namespace() + "/" + depthTopicName)
             {
-                this->depthTimer_->stop();
-                this->DepthPub_.reset();// Call destructor
-                this->DepthPub_ = this->create_publisher<vehicle_interfaces::msg::Image>(this->params_->topic_ZEDCam_Depth_topicName, *v);
-                this->depthTimer_->start();
+                depthLocker.lock();
+                this->depthPub_.reset();// Call destructor
+                this->depthPub_ = this->create_publisher<vehicle_interfaces::msg::Image>(depthTopicName, *v);
+                depthLocker.unlock();
             }
         }
     }
 
 public:
-    ZEDPublisher(const std::shared_ptr<Params>& params) : 
-        vehicle_interfaces::VehicleServiceNode(params), 
-        rclcpp::Node(params->nodeName), 
-        params_(params), 
-        rgbMatInitF_(false), 
-        depthMatInitF_(false)
+    ZEDPublisher(const std::shared_ptr<Params>& params, int id) : 
+        vehicle_interfaces::PseudoTimeSyncNode(params->nodeName + "_" + std::to_string(id)), 
+        vehicle_interfaces::QoSUpdateNode(params->nodeName + "_" + std::to_string(id), params->qosService, params->qosDirPath), 
+        rclcpp::Node(params->nodeName + "_" + std::to_string(id)), 
+        id_(id)
     {
         this->useColorF_ = params->camera_use_color;
         this->useDepthF_ = params->camera_use_depth;
+
+        this->nodeName_ = params->nodeName + "_" + std::to_string(id);
+        this->rgbTopicName_ = params->topic_ZEDCam_RGB_topicName + "_" + std::to_string(id);
+        this->depthTopicName_ = params->topic_ZEDCam_Depth_topicName + "_" + std::to_string(id);
+
+        this->rgbPubPeriod_ = params->topic_ZEDCam_RGB_pubInterval_s;
+        this->depthPubPeriod_ = params->topic_ZEDCam_Depth_pubInterval_s;
 
         this->addQoSCallbackFunc(std::bind(&ZEDPublisher::_qosCallback, this, std::placeholders::_1));
 
         if (params->camera_use_color)
         {
-            vehicle_interfaces::QoSPair qpair = this->addQoSTracking(params->topic_ZEDCam_RGB_topicName);
+            vehicle_interfaces::QoSPair qpair = this->addQoSTracking(this->rgbTopicName_);
             if (qpair.first == "")
-                RCLCPP_ERROR(this->get_logger(), "[ZEDPublisher] Failed to add topic to track list: %s", params->topic_ZEDCam_RGB_topicName);
+                RCLCPP_ERROR(this->get_logger(), "[ZEDPublisher] Failed to add topic to track list: %s", this->rgbTopicName_.c_str());
             else
             {
                 RCLCPP_INFO(this->get_logger(), "[ZEDPublisher] QoS profile [%s]:\nDepth: %d\nReliability: %d", 
                     qpair.first.c_str(), qpair.second->get_rmw_qos_profile().depth, qpair.second->get_rmw_qos_profile().reliability);
             }
-            this->RGBPub_ = this->create_publisher<vehicle_interfaces::msg::Image>(params->topic_ZEDCam_RGB_topicName, *qpair.second);
-            this->rgbTimer_ = new vehicle_interfaces::Timer(params->topic_ZEDCam_RGB_pubInterval_s * 1000.0, std::bind(&ZEDPublisher::_rgbTimerCallback, this));
+            this->rgbPub_ = this->create_publisher<vehicle_interfaces::msg::Image>(this->rgbTopicName_, *qpair.second);
         }
         if (params->camera_use_depth)
         {
-            vehicle_interfaces::QoSPair qpair = this->addQoSTracking(params->topic_ZEDCam_Depth_topicName);
+            vehicle_interfaces::QoSPair qpair = this->addQoSTracking(this->depthTopicName_);
             if (qpair.first == "")
-                RCLCPP_ERROR(this->get_logger(), "[ZEDPublisher] Failed to add topic to track list: %s", params->topic_ZEDCam_Depth_topicName);
+                RCLCPP_ERROR(this->get_logger(), "[ZEDPublisher] Failed to add topic to track list: %s", this->depthTopicName_.c_str());
             else
             {
                 RCLCPP_INFO(this->get_logger(), "[ZEDPublisher] QoS profile [%s]:\nDepth: %d\nReliability: %d", 
                     qpair.first.c_str(), qpair.second->get_rmw_qos_profile().depth, qpair.second->get_rmw_qos_profile().reliability);
             }
-            this->DepthPub_ = this->create_publisher<vehicle_interfaces::msg::Image>(params->topic_ZEDCam_Depth_topicName, *qpair.second);
-            this->depthTimer_ = new vehicle_interfaces::Timer(params->topic_ZEDCam_Depth_pubInterval_s * 1000.0, std::bind(&ZEDPublisher::_depthTimerCallback, this));
+            this->depthPub_ = this->create_publisher<vehicle_interfaces::msg::Image>(this->depthTopicName_, *qpair.second);
         }
     }
 
-    ~ZEDPublisher()
-    {
-        if (this->useColorF_)
-            this->rgbTimer_->destroy();
-        if (this->useDepthF_)
-            this->depthTimer_->destroy();
-    }
-
-    void setRGBMat(const std::vector<uchar> vec, cv::Size sz, int type)
+    void pubRGBMat(const std::vector<uchar>& vec, cv::Size sz, int type)
     {
         if (!this->useColorF_)
             return;
-        std::unique_lock<std::mutex> locker(this->rgbLock_, std::defer_lock);
-        locker.lock();
-        this->rgbMatVec_ = vec;
-        this->rgbMatSize_ = sz;
-        this->rgbMatType_ = type;
-        locker.unlock();
-        if (!this->rgbMatInitF_)
-            this->rgbMatInitF_ = true;
+
+        std::lock_guard<std::mutex> locker(this->rgbLock_);
+        static u_int64_t rgbFrameID = 0;
+        auto msg = vehicle_interfaces::msg::Image();
+        msg.header.priority = vehicle_interfaces::msg::Header::PRIORITY_SENSOR;
+        msg.header.device_type = vehicle_interfaces::msg::Header::DEVTYPE_IMAGE;
+        msg.header.device_id = this->nodeName_;
+        msg.header.frame_id = rgbFrameID++;
+        msg.header.stamp_type = this->getTimestampType();
+        msg.header.stamp = this->getTimestamp();
+        msg.header.stamp_offset = this->getCorrectDuration().nanoseconds();
+        msg.header.ref_publish_time_ms = this->rgbPubPeriod_ * 1000.0;
+
+        msg.format_type = msg.FORMAT_JPEG;
+        msg.cvmat_type = type;
+        msg.width = sz.width;
+        msg.height = sz.height;
+        msg.data = vec;
+
+        this->rgbPub_->publish(msg);
     }
 
-    void setDepthMat(const std::vector<uchar> vec, cv::Size sz, int type, int unit)
+    void pubDepthMat(const std::vector<uchar>& vec, cv::Size sz, int type, int unit)
     {
         if (!this->useDepthF_)
             return;
-        std::unique_lock<std::mutex> locker(this->depthLock_, std::defer_lock);
-        locker.lock();
-        this->depthMatVec_ = vec;
-        this->depthMatSize_ = sz;
-        this->depthMatType_ = type;
-        this->depthUnitType_ = unit;
-        locker.unlock();
-        if (!this->depthMatInitF_)
-            this->depthMatInitF_ = true;
+
+        std::lock_guard<std::mutex> locker(this->depthLock_);
+        static u_int64_t depthFrameID = 0;
+        auto msg = vehicle_interfaces::msg::Image();
+        msg.header.priority = vehicle_interfaces::msg::Header::PRIORITY_SENSOR;
+        msg.header.device_type = vehicle_interfaces::msg::Header::DEVTYPE_IMAGE;
+        msg.header.device_id = this->nodeName_;
+        msg.header.frame_id = depthFrameID++;
+        msg.header.stamp_type = this->getTimestampType();
+        msg.header.stamp = this->getTimestamp();
+        msg.header.stamp_offset = this->getCorrectDuration().nanoseconds();
+        msg.header.ref_publish_time_ms = this->depthPubPeriod_ * 1000.0;
+
+        msg.format_type = msg.FORMAT_RAW;
+        msg.cvmat_type = type;
+        msg.depth_unit_type = unit;
+        msg.width = sz.width;
+        msg.height = sz.height;
+        msg.data = vec;
+
+        this->depthPub_->publish(msg);
     }
-
-    void startRGBPub() { this->rgbTimer_->start(); }
-
-    void startDepthPub() { this->depthTimer_->start(); }
-
-    void stopRGBPub() { this->rgbTimer_->stop(); }
-
-    void stopDepthPub() { this->depthTimer_->stop(); }
 };
 
-
-void SpinNode(std::shared_ptr<rclcpp::Node> node, std::string threadName)
+class ZEDNode : public vehicle_interfaces::VehicleServiceNode
 {
-	std::cerr << threadName << " start..." << std::endl;
-	rclcpp::spin(node);
-	std::cerr << threadName << " exit." << std::endl;
-	rclcpp::shutdown();
-}
+private:
+    std::shared_ptr<Params> params_;
+
+    std::map<int, std::shared_ptr<ZEDPublisher> > zedPubs;
+    std::vector<std::thread> zedThVec_;
+    std::mutex zedPubsLock_;
+
+public:
+    ZEDNode(const std::shared_ptr<Params>& params) : 
+        vehicle_interfaces::VehicleServiceNode(params), 
+        rclcpp::Node(params->nodeName), 
+        params_(params) {}
+
+    ~ZEDNode()
+    {
+        for (auto& i : this->zedThVec_)
+            i.join();
+    }
+
+    void addZEDPublisher(int topicID)
+    {
+        std::lock_guard<std::mutex> locker(this->zedPubsLock_);
+        this->zedPubs[topicID] = std::make_shared<ZEDPublisher>(this->params_, topicID);
+        this->zedPubs[topicID]->syncTime(this->getCorrectDuration(), this->getTimestampType());
+        this->zedThVec_.emplace_back(vehicle_interfaces::SpinNode, this->zedPubs[topicID], "ZEDPublisher_" + std::to_string(topicID));
+    }
+
+    std::shared_ptr<ZEDPublisher>& getZEDPublisher(int topicID)
+    {
+        std::lock_guard<std::mutex> locker(this->zedPubsLock_);
+        return this->zedPubs[topicID];
+    }
+
+    void syncZEDPublisher(int topicID)
+    {
+        std::lock_guard<std::mutex> locker(this->zedPubsLock_);
+        this->zedPubs[topicID]->syncTime(this->getCorrectDuration(), this->getTimestampType());
+    }
+
+    std::shared_ptr<Params> getParams() const
+    {
+        return this->params_;
+    }
+};
