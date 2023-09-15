@@ -1,0 +1,7 @@
+sudo systemctl restart zed_x_daemon.service
+printf "%s\n" "ZED X driver loading..."
+while ! sudo systemctl status zed_x_daemon.service --no-pager | grep -Po "ZED-X Driver loaded" &> /dev/null
+do
+    printf "%c" "."
+done
+printf "\t%s\n" "ZED X driver loaded."

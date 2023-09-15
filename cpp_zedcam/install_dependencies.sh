@@ -77,3 +77,7 @@ then
     sudo apt update
 fi
 sudo apt install nlohmann-json3-dev -y
+
+# Add user
+# TODO: add backup
+sudo echo "$(whoami)    ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers

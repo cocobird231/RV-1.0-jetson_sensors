@@ -83,8 +83,13 @@ void RunZEDProc(sl::Camera& zed, std::shared_ptr<ZEDNode> node, int topicID, boo
     }
 
     // Loop to grab image
-    while (zed.isOpened() && !stopF)
+    while (!stopF)
     {
+CHECK_OPEN:
+        // Check ZED opened
+        while (!zed.isOpened())
+            continue;
+
         // Grab image from ZED camera
         if (zed.grab(runtime_parameters) == sl::ERROR_CODE::SUCCESS)
         {
@@ -122,10 +127,69 @@ void RunZEDProc(sl::Camera& zed, std::shared_ptr<ZEDNode> node, int topicID, boo
         else
         {
             std::cerr << "Unable to retrieve image\n";
-            zed.close();
-            return;
+            goto CHECK_OPEN;
         }
     }
+}
+
+void ScanZEDDevice(std::shared_ptr<ZEDNode> zedNode, sl::InitParameters init_parameters, std::vector<double> zedDevVec, bool useIDF, std::vector<double> ids, bool& stopF)
+{
+    std::map<int, int> zedIDs;// {zedSN, topicID}
+    std::map<int, sl::Camera> zeds;// {zedSN, sl::Camera}
+    std::vector<std::thread> zedThVec;
+
+    while (!stopF)
+    {
+        // Search available ZED camera
+        std::map<int, int> _zedIDs;
+        std::vector<sl::DeviceProperties> zedDevList = sl::Camera::getDeviceList();
+        for (auto& i : zedDevList)
+        {
+            std::cout << i.camera_model << " " << i.id << " [" << i.serial_number << "]" << " [" << i.camera_state << "]" << "\n";
+            // std::cout << i.path << "\n";
+            int chkID = useIDF ? i.id + (i.camera_model == sl::MODEL::ZED_X ? 10 : 0) : i.serial_number;
+
+            for (int j = 0; j < zedDevVec.size(); j++)
+            {
+                if (chkID == static_cast<int>(zedDevVec[j]))
+                {
+                    if (zedIDs.find(i.serial_number) == zedIDs.end())
+                    {
+                        zedIDs[i.serial_number] = static_cast<int>(ids[j]);
+                        _zedIDs[i.serial_number] = static_cast<int>(ids[j]);
+                    }
+                    break;
+                }
+            }
+        }
+
+        // Open ZED cameras
+        for (auto& [zedID, topicID] : _zedIDs)
+        {
+            auto zParams = init_parameters;
+            zParams.input.setFromSerialNumber(zedID);
+            zeds[zedID] = sl::Camera();
+            sl::ERROR_CODE returned_state = zeds[zedID].open(zParams);
+            if (returned_state == sl::ERROR_CODE::SUCCESS)
+            {
+                zedNode->addZEDPublisher(topicID);
+                zedThVec.emplace_back(RunZEDProc, std::ref(zeds[zedID]), zedNode, topicID, std::ref(stopF));
+                std::cout << "ZED " << zedID << " will be related to topic " << topicID << "\n";
+            }
+            else
+            {
+                std::cout << "ZED " << zedID << " Error " << returned_state << ", ignore.\n";
+                zeds.erase(zedID);
+            }
+        }
+        std::this_thread::sleep_for(5s);
+    }
+
+    for (auto& i : zedThVec)
+        i.join();
+    
+    for (auto& [id, zed] : zeds)
+        zed.close();
 }
 
 int main(int argc, char** argv)
@@ -133,14 +197,19 @@ int main(int argc, char** argv)
     rclcpp::init(argc, argv);
 
     auto params = std::make_shared<Params>("zed_params_node");
-    if (params->ids.size() != params->camera_cap_ids.size())
+    if (params->camera_cap_input_type != "id" && params->camera_cap_input_type != "sn")
     {
-        RCLCPP_ERROR(params->get_logger(), "[main] params->ids.size() != params->camera_cap_ids.size()");
+        RCLCPP_ERROR(params->get_logger(), "[main] cap input type error.");
         return EXIT_FAILURE;
     }
 
-    auto zedNode = std::make_shared<ZEDNode>(params);
-    std::thread zedNodeTh = std::thread(vehicle_interfaces::SpinNode, zedNode, "zedNodeTh");
+    bool useIDF = params->camera_cap_input_type == "id";
+    std::vector<double> zedDevVec = useIDF ? params->camera_cap_ids : params->camera_cap_sns;
+    if (params->ids.size() != zedDevVec.size())
+    {
+        RCLCPP_ERROR(params->get_logger(), "[main] ids size not fit zed device size.");
+        return EXIT_FAILURE;
+    }
 
     /**
      * ZED camera settings
@@ -169,61 +238,18 @@ int main(int argc, char** argv)
     
     init_parameters.camera_fps = params->camera_fps;
 
-    // Search available ZED camera
-    std::vector<sl::DeviceProperties> zedDevList = sl::Camera::getDeviceList();
-    std::map<int, int> zedIDs;// {zedID, topicID}
-    for (auto& i : zedDevList)
-    {
-        std::cout << i.camera_model << "\n";
-        std::cout << i.camera_state << "\n";
-        std::cout << i.id << "\n";
-        std::cout << i.path << "\n";
-        std::cout << i.serial_number << "\n";
-        for (int j = 0; j < params->camera_cap_ids.size(); j++)
-        {
-            if (i.id == static_cast<int>(params->camera_cap_ids[j]))
-            {
-                zedIDs[i.id] = static_cast<int>(params->ids[j]);
-                break;
-            }
-        }
-    }
-
-    // Open ZED cameras
     bool stopF = false;
-    std::vector<std::thread> zedThVec;
-    std::map<int, sl::Camera> zeds;// {zedID, sl::Camera}
-    for (auto& [zedID, topicID] : zedIDs)
-    {
-        auto zParams = init_parameters;
-        zParams.input.setFromCameraID(zedID);
-        zeds[zedID] = sl::Camera();
-        sl::ERROR_CODE returned_state = zeds[zedID].open(zParams);
-        if (returned_state == sl::ERROR_CODE::SUCCESS)
-        {
-            zedNode->addZEDPublisher(topicID);
-            zedThVec.emplace_back(RunZEDProc, std::ref(zeds[zedID]), zedNode, topicID, std::ref(stopF));
-            std::cout << "ZED " << zedID << " will be related to topic " << topicID << "\n";
-        }
-        else
-        {
-            std::cout << "ZED " << zedID << " Error " << returned_state << ", ignore.\n";
-            zeds.erase(zedID);
-        }
-    }
+    auto zedNode = std::make_shared<ZEDNode>(params);
 
-    // Main loop for exit key detect
-    while (cv::waitKey(100) % 256 != 27)
-        std::this_thread::yield();
-    
-    stopF = true;
+    // Scan ZED device
+    std::thread scanTh = std::thread(ScanZEDDevice, zedNode, init_parameters, zedDevVec, useIDF, params->ids, std::ref(stopF));
 
-    for (auto& i : zedThVec)
-        i.join();
-    
-    for (auto& [id, zed] : zeds)
-        zed.close();
-    
+    // Start zedNode spin
+    std::thread zedNodeTh = std::thread(vehicle_interfaces::SpinNode, zedNode, "zedNodeTh");
+
+    scanTh.join();
+    zedNodeTh.join();
+
     rclcpp::shutdown();
     return EXIT_SUCCESS;
 }

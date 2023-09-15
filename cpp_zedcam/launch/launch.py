@@ -1,3 +1,4 @@
+#ver=1.2
 from launch import LaunchDescription
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
@@ -30,6 +31,8 @@ def generate_launch_description():
                     "topic_ZEDCam_Depth_width" : data['topic_ZEDCam_Depth']['width'], 
                     "topic_ZEDCam_Depth_height" : data['topic_ZEDCam_Depth']['height'], 
                     "camera_cap_ids" : data['camera_prop']['cap_ids'], 
+                    "camera_cap_sns" : data['camera_prop']['cap_sns'], 
+                    "camera_cap_input_type" : data['camera_prop']['cap_input_type'], 
                     "camera_fps" : data['camera_prop']['fps'], 
                     "camera_width" : data['camera_prop']['width'], 
                     "camera_height" : data['camera_prop']['height'], 
@@ -44,6 +47,8 @@ def generate_launch_description():
                     "nodeName" : data['generic_prop']['nodeName'] + '_' + str(data['generic_prop']['id']) + '_node', 
                     "id" : data['generic_prop']['id'], 
                     "ids" : data['generic_prop']['ids'], 
+                    "devInfoService" : data['generic_prop']['devInfoService'], 
+                    "devInterface" : data['generic_prop']['devInterface'], 
                     "qosService" : data['generic_prop']['qosService'], 
                     "qosDirPath" : data['generic_prop']['qosDirPath'], 
                     "safetyService" : data['generic_prop']['safetyService'], 

@@ -25,6 +25,8 @@ public:
     int topic_ZEDCam_Depth_height = 360;
 
     std::vector<double> camera_cap_ids = { 0 };
+    std::vector<double> camera_cap_sns = {};
+    std::string camera_cap_input_type = "id";
     float camera_fps = 30.0;
     int camera_width = 1280;
     int camera_height = 720;
@@ -52,6 +54,8 @@ private:
         this->get_parameter("topic_ZEDCam_Depth_height", this->topic_ZEDCam_Depth_height);
 
         this->get_parameter("camera_cap_ids", this->camera_cap_ids);
+        this->get_parameter("camera_cap_sns", this->camera_cap_sns);
+        this->get_parameter("camera_cap_input_type", this->camera_cap_input_type);
         this->get_parameter("camera_fps", this->camera_fps);
         this->get_parameter("camera_width", this->camera_width);
         this->get_parameter("camera_height", this->camera_height);
@@ -80,6 +84,8 @@ public:
         this->declare_parameter<int>("topic_ZEDCam_Depth_height", this->topic_ZEDCam_Depth_height);
 
         this->declare_parameter<std::vector<double> >("camera_cap_ids", this->camera_cap_ids);
+        this->declare_parameter<std::vector<double> >("camera_cap_sns", this->camera_cap_sns);
+        this->declare_parameter<std::string>("camera_cap_input_type", this->camera_cap_input_type);
         this->declare_parameter<float>("camera_fps", this->camera_fps);
         this->declare_parameter<int>("camera_width", this->camera_width);
         this->declare_parameter<int>("camera_height", this->camera_height);
