@@ -78,6 +78,13 @@ then
 fi
 sudo apt install nlohmann-json3-dev -y
 
-# Add user
-# TODO: add backup
-sudo echo "$(whoami)    ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+# Recover /etc/sudoers if .tmp exist
+# if sudo cat /etc/sudoers.tmp &> /dev/null
+# then
+#     sudo cp /etc/sudoers.tmp /etc/sudoers
+#     echo "/etc/sudoers recovered"
+# else
+#     sudo cp /etc/sudoers /etc/sudoers.tmp
+#     echo "Backup /etc/sudoers: /etc/sudoers.tmp"
+# fi
+# sudo echo "$(whoami)    ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
