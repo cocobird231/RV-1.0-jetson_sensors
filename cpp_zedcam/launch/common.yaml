@@ -41,7 +41,7 @@ generic_prop:
 
     # Device information service configuration
     devInfoService : "" # Service name devinfo_0
-    devInterface : "enp0s31f6" # eth0
+    devInterface : "eth0" # eth0
 
     # QoS service configuration
     qosService : "qos_0" # Service name qos_0
