@@ -132,32 +132,34 @@ CHECK_OPEN:
     }
 }
 
-void ScanZEDDevice(std::shared_ptr<ZEDNode> zedNode, sl::InitParameters init_parameters, std::vector<double> zedDevVec, bool useIDF, std::vector<double> ids, bool& stopF)
+// Keep scanning ZED device in every 1 second until all selected devices starts running.
+void ScanZEDDevice(std::shared_ptr<ZEDNode> zedNode, sl::InitParameters init_parameters, std::map<int, int> zedTopicMap, bool& stopF)
 {
-    std::map<int, int> zedIDs;// {zedSN, topicID}
-    std::map<int, sl::Camera> zeds;// {zedSN, sl::Camera}
+    std::map<int, sl::Camera> zeds;// { zedSN, sl::Camera }
     std::vector<std::thread> zedThVec;
 
     while (!stopF)
     {
+        // No caps or all running
+        if (zedTopicMap.size() <= 0)
+            break;
+        
+        for (auto& [topicID, zedID] : zedTopicMap)
+            printf("Finding ZED %d with topic %d...\n", zedID, topicID);
+        
         // Search available ZED camera
         std::map<int, int> _zedIDs;
-        std::vector<sl::DeviceProperties> zedDevList = sl::Camera::getDeviceList();
-        for (auto& i : zedDevList)
+        std::vector<sl::DeviceProperties> _zedDevList = sl::Camera::getDeviceList();
+        for (auto& i : _zedDevList)
         {
-            std::cout << i.camera_model << " " << i.id << " [" << i.serial_number << "]" << " [" << i.camera_state << "]" << "\n";
+            std::cout << "[" << i.camera_state << "] " << i.camera_model << " " << i.id << " [" << i.serial_number << "](" << i.path << ")\n";
             // std::cout << i.path << "\n";
-            int chkID = useIDF ? i.id + (i.camera_model == sl::MODEL::ZED_X ? 10 : 0) : i.serial_number;
 
-            for (int j = 0; j < zedDevVec.size(); j++)
+            for (auto& [topicID, zedID] : zedTopicMap)
             {
-                if (chkID == static_cast<int>(zedDevVec[j]))
+                if ((zedID < 10000000.0 ? i.id + (i.camera_model == sl::MODEL::ZED_X ? 10 : 0) : i.serial_number) == zedID)
                 {
-                    if (zedIDs.find(i.serial_number) == zedIDs.end())
-                    {
-                        zedIDs[i.serial_number] = static_cast<int>(ids[j]);
-                        _zedIDs[i.serial_number] = static_cast<int>(ids[j]);
-                    }
+                    _zedIDs[i.serial_number] = topicID;
                     break;
                 }
             }
@@ -175,15 +177,18 @@ void ScanZEDDevice(std::shared_ptr<ZEDNode> zedNode, sl::InitParameters init_par
                 zedNode->addZEDPublisher(topicID);
                 zedThVec.emplace_back(RunZEDProc, std::ref(zeds[zedID]), zedNode, topicID, std::ref(stopF));
                 std::cout << "ZED " << zedID << " will be related to topic " << topicID << "\n";
+                zedTopicMap.erase(topicID);
             }
             else
             {
-                std::cout << "ZED " << zedID << " Error " << returned_state << ", ignore.\n";
+                std::cerr << "ZED " << zedID << " Error " << returned_state << ", ignore.\n";
                 zeds.erase(zedID);
             }
         }
-        std::this_thread::sleep_for(5s);
+        std::this_thread::sleep_for(1s);
     }
+    std::cout << "Stop scanning ZED device.\n";
+    std::cout << "Threads wait for ZED join.\n";
 
     for (auto& i : zedThVec)
         i.join();
@@ -197,19 +202,38 @@ int main(int argc, char** argv)
     rclcpp::init(argc, argv);
 
     auto params = std::make_shared<Params>("zed_params_node");
-    if (params->camera_cap_input_type != "id" && params->camera_cap_input_type != "sn")
-    {
-        RCLCPP_ERROR(params->get_logger(), "[main] cap input type error.");
-        return EXIT_FAILURE;
-    }
-
-    bool useIDF = params->camera_cap_input_type == "id";
-    std::vector<double> zedDevVec = useIDF ? params->camera_cap_ids : params->camera_cap_sns;
-    if (params->ids.size() != zedDevVec.size())
+    if (params->ids.size() != params->camera_caps.size())
     {
         RCLCPP_ERROR(params->get_logger(), "[main] ids size not fit zed device size.");
         return EXIT_FAILURE;
     }
+
+    // Validation test
+    {
+        // Test ids
+        std::set<int> testIDValidSet;
+        for (auto& i : params->ids)
+            testIDValidSet.insert(static_cast<int>(i));
+        if (params->ids.size() != testIDValidSet.size())
+        {
+            RCLCPP_ERROR(params->get_logger(), "[main] ids conflict.");
+            return EXIT_FAILURE;
+        }
+
+        // Test caps
+        std::set<int> testZEDValidSet;
+        for (auto& i : params->camera_caps)
+            testZEDValidSet.insert(static_cast<int>(i));
+        if (params->camera_caps.size() != testZEDValidSet.size())
+        {
+            RCLCPP_ERROR(params->get_logger(), "[main] camera_caps conflict.");
+            return EXIT_FAILURE;
+        }
+    }
+
+    std::map<int, int> zedTopicMap;// { topicID : zedID }
+    for (int i = 0; i < params->camera_caps.size(); i++)
+        zedTopicMap[static_cast<int>(params->ids[i])] = static_cast<int>(params->camera_caps[i]);
 
     /**
      * ZED camera settings
@@ -242,7 +266,7 @@ int main(int argc, char** argv)
     auto zedNode = std::make_shared<ZEDNode>(params);
 
     // Scan ZED device
-    std::thread scanTh = std::thread(ScanZEDDevice, zedNode, init_parameters, zedDevVec, useIDF, params->ids, std::ref(stopF));
+    std::thread scanTh = std::thread(ScanZEDDevice, zedNode, init_parameters, zedTopicMap, std::ref(stopF));
 
     // Start zedNode spin
     std::thread zedNodeTh = std::thread(vehicle_interfaces::SpinNode, zedNode, "zedNodeTh");

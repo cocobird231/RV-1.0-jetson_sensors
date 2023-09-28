@@ -42,7 +42,10 @@ then
     wget -O zed-install.run https://download.stereolabs.com/zedsdk/4.0/l4t35.1/jetsons
 elif [ "$jetson_main_ver" == "5.1" ]
 then
-    if [ "$jetson_ver" == "5.1.1" ]
+    if [ "$jetson_ver" == "5.1.2" ]
+    then
+        wget -O zed-install.run https://download.stereolabs.com/zedsdk/4.0/l4t35.4/jetsons
+    elif [ "$jetson_ver" == "5.1.1" ]
     then
         wget -O zed-install.run https://download.stereolabs.com/zedsdk/4.0/l4t35.3/jetsons
     else

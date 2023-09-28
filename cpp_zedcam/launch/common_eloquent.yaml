@@ -15,9 +15,7 @@ topic_ZEDCam_Depth:
     height : 360
 
 camera_prop:
-    cap_ids : [0.0] # Input ZED IDs
-    cap_sns : [12345678.0] # Input ZED SNs
-    cap_input_type : "id" # id or sn
+    caps : [0.0] # Input ZED ID or SN. Program decided cap[i] as ID if (int)cap[i] < 10000000
     fps : 30.0 # Input frame rate
     width : 1280 # Input resolution
     height : 720 # Input resolution (main decision, max: 1080p, min: VGA)
