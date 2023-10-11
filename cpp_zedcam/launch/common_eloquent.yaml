@@ -1,4 +1,4 @@
-#ver=1.2
+#ver=1.3
 ---
 topic_ZEDCam_RGB:
     nodeName : "zed_rgb" # Automatically formed to "<nodeName>_<id>_node"
@@ -38,8 +38,9 @@ generic_prop:
     ids : [0.0]
 
     # Device information service configuration
-    devInfoService : "" # Service name
+    devInfoService : "devinfo_0" # Service name devinfo_0
     devInterface : "eth0" # eth0
+    devMultiNode : False # False
 
     # QoS service configuration
     qosService : "qos_0" # Service name qos_0
