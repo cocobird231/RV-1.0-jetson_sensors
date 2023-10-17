@@ -30,6 +30,7 @@ def generate_launch_description():
                     "topic_ZEDCam_Depth_pubInterval_s" : data['topic_ZEDCam_Depth']['publishInterval_s'], 
                     "topic_ZEDCam_Depth_width" : data['topic_ZEDCam_Depth']['width'], 
                     "topic_ZEDCam_Depth_height" : data['topic_ZEDCam_Depth']['height'], 
+                    "topicIDs" : data['camera_prop']['topicIDs'], 
                     "camera_caps" : data['camera_prop']['caps'], 
                     "camera_fps" : data['camera_prop']['fps'], 
                     "camera_width" : data['camera_prop']['width'], 
@@ -44,7 +45,6 @@ def generate_launch_description():
                     # Do not change the settings rashly
                     "nodeName" : data['generic_prop']['nodeName'] + '_' + str(data['generic_prop']['id']) + '_node', 
                     "id" : data['generic_prop']['id'], 
-                    "ids" : data['generic_prop']['ids'], 
                     "devInfoService" : data['generic_prop']['devInfoService'], 
                     "devInterface" : data['generic_prop']['devInterface'], 
                     "devMultiNode" : data['generic_prop']['devMultiNode'], 

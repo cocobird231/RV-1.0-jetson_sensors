@@ -34,7 +34,7 @@ public:
     bool camera_use_color = true;
     bool camera_use_depth = true;
 
-    std::vector<double> ids = { 0 };
+    std::vector<double> topicIDs = { 0 };
 
 private:
     void _getParams()
@@ -51,6 +51,7 @@ private:
         this->get_parameter("topic_ZEDCam_Depth_width", this->topic_ZEDCam_Depth_width);
         this->get_parameter("topic_ZEDCam_Depth_height", this->topic_ZEDCam_Depth_height);
 
+        this->get_parameter("topicIDs", this->topicIDs);
         this->get_parameter("camera_caps", this->camera_caps);
         this->get_parameter("camera_fps", this->camera_fps);
         this->get_parameter("camera_width", this->camera_width);
@@ -60,8 +61,6 @@ private:
         this->get_parameter("camera_depth_unit", this->camera_depth_unit);
         this->get_parameter("camera_use_color", this->camera_use_color);
         this->get_parameter("camera_use_depth", this->camera_use_depth);
-
-        this->get_parameter("ids", this->ids);
     }
 
 public:
@@ -79,6 +78,7 @@ public:
         this->declare_parameter<int>("topic_ZEDCam_Depth_width", this->topic_ZEDCam_Depth_width);
         this->declare_parameter<int>("topic_ZEDCam_Depth_height", this->topic_ZEDCam_Depth_height);
 
+        this->declare_parameter<std::vector<double> >("topicIDs", this->topicIDs);
         this->declare_parameter<std::vector<double> >("camera_caps", this->camera_caps);
         this->declare_parameter<float>("camera_fps", this->camera_fps);
         this->declare_parameter<int>("camera_width", this->camera_width);
@@ -89,7 +89,6 @@ public:
         this->declare_parameter<bool>("camera_use_color", this->camera_use_color);
         this->declare_parameter<bool>("camera_use_depth", this->camera_use_depth);
 
-        this->declare_parameter<std::vector<double> >("ids", this->ids);
         this->_getParams();
     }
 };

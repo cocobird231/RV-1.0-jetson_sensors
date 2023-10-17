@@ -202,21 +202,21 @@ int main(int argc, char** argv)
     rclcpp::init(argc, argv);
 
     auto params = std::make_shared<Params>("zed_params_node");
-    if (params->ids.size() != params->camera_caps.size())
+    if (params->topicIDs.size() != params->camera_caps.size())
     {
-        RCLCPP_ERROR(params->get_logger(), "[main] ids size not fit zed device size.");
+        RCLCPP_ERROR(params->get_logger(), "[main] topicIDs size not fit zed device size.");
         return EXIT_FAILURE;
     }
 
     // Validation test
     {
-        // Test ids
+        // Test topicIDs
         std::set<int> testIDValidSet;
-        for (auto& i : params->ids)
+        for (auto& i : params->topicIDs)
             testIDValidSet.insert(static_cast<int>(i));
-        if (params->ids.size() != testIDValidSet.size())
+        if (params->topicIDs.size() != testIDValidSet.size())
         {
-            RCLCPP_ERROR(params->get_logger(), "[main] ids conflict.");
+            RCLCPP_ERROR(params->get_logger(), "[main] topicIDs conflict.");
             return EXIT_FAILURE;
         }
 
@@ -233,7 +233,7 @@ int main(int argc, char** argv)
 
     std::map<int, int> zedTopicMap;// { topicID : zedID }
     for (int i = 0; i < params->camera_caps.size(); i++)
-        zedTopicMap[static_cast<int>(params->ids[i])] = static_cast<int>(params->camera_caps[i]);
+        zedTopicMap[static_cast<int>(params->topicIDs[i])] = static_cast<int>(params->camera_caps[i]);
 
     /**
      * ZED camera settings
