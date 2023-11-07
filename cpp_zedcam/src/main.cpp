@@ -36,11 +36,10 @@ void RunZEDProc(sl::Camera& zed, std::shared_ptr<ZEDNode> node, int topicID, boo
     else if (params->camera_sensing_mode == 1)// Fill mode
         // runtime_parameters.sensing_mode = sl::SENSING_MODE::FILL;// SDK ver 3.8
         runtime_parameters.enable_fill_mode = true;
-    
+
     sl::Mat rgbslMat, depthslMat;
     cv::Mat rgbMat, depthMat;
 
-    // TODO: add ZED grab process and ROS2 publish process
     sl::Resolution pubRGBImgSize(params->topic_ZEDCam_RGB_width, params->topic_ZEDCam_RGB_height);
     sl::Resolution pubDepthImgSize(params->topic_ZEDCam_Depth_width, params->topic_ZEDCam_Depth_height);
 
@@ -85,7 +84,6 @@ void RunZEDProc(sl::Camera& zed, std::shared_ptr<ZEDNode> node, int topicID, boo
     // Loop to grab image
     while (!stopF)
     {
-CHECK_OPEN:
         // Check ZED opened
         while (!zed.isOpened())
             continue;
@@ -127,7 +125,6 @@ CHECK_OPEN:
         else
         {
             std::cerr << "Unable to retrieve image\n";
-            goto CHECK_OPEN;
         }
     }
 }

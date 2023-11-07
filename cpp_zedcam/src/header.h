@@ -106,10 +106,12 @@ private:
     std::mutex paramsLock_;
     
     rclcpp::Publisher<vehicle_interfaces::msg::Image>::SharedPtr rgbPub_;
+    u_int64_t rgbFrameID;
     std::mutex rgbLock_;
     bool useColorF_;
 
     rclcpp::Publisher<vehicle_interfaces::msg::Image>::SharedPtr depthPub_;
+    u_int64_t depthFrameID;
     std::mutex depthLock_;
     bool useDepthF_;
 
@@ -162,7 +164,9 @@ public:
         vehicle_interfaces::PseudoTimeSyncNode(params->nodeName + "_" + std::to_string(id)), 
         vehicle_interfaces::QoSUpdateNode(params->nodeName + "_" + std::to_string(id), params->qosService, params->qosDirPath), 
         rclcpp::Node(params->nodeName + "_" + std::to_string(id)), 
-        id_(id)
+        id_(id), 
+        rgbFrameID(0), 
+        depthFrameID(0)
     {
         this->useColorF_ = params->camera_use_color;
         this->useDepthF_ = params->camera_use_depth;
@@ -208,12 +212,11 @@ public:
             return;
 
         std::lock_guard<std::mutex> locker(this->rgbLock_);
-        static u_int64_t rgbFrameID = 0;
         auto msg = vehicle_interfaces::msg::Image();
         msg.header.priority = vehicle_interfaces::msg::Header::PRIORITY_SENSOR;
         msg.header.device_type = vehicle_interfaces::msg::Header::DEVTYPE_IMAGE;
         msg.header.device_id = this->nodeName_;
-        msg.header.frame_id = rgbFrameID++;
+        msg.header.frame_id = this->rgbFrameID++;
         msg.header.stamp_type = this->getTimestampType();
         msg.header.stamp = this->getTimestamp();
         msg.header.stamp_offset = this->getCorrectDuration().nanoseconds();
@@ -234,12 +237,11 @@ public:
             return;
 
         std::lock_guard<std::mutex> locker(this->depthLock_);
-        static u_int64_t depthFrameID = 0;
         auto msg = vehicle_interfaces::msg::Image();
         msg.header.priority = vehicle_interfaces::msg::Header::PRIORITY_SENSOR;
         msg.header.device_type = vehicle_interfaces::msg::Header::DEVTYPE_IMAGE;
         msg.header.device_id = this->nodeName_;
-        msg.header.frame_id = depthFrameID++;
+        msg.header.frame_id = this->depthFrameID++;
         msg.header.stamp_type = this->getTimestampType();
         msg.header.stamp = this->getTimestamp();
         msg.header.stamp_offset = this->getCorrectDuration().nanoseconds();
@@ -265,11 +267,22 @@ private:
     std::vector<std::thread> zedThVec_;
     std::mutex zedPubsLock_;
 
+private:
+    void _timeSyncCallback()
+    {
+        std::lock_guard<std::mutex> locker(this->zedPubsLock_);
+        for (auto& [_id, pub] : this->zedPubs)
+            pub->syncTime(this->getCorrectDuration(), this->getTimestampType());
+    }
+
 public:
     ZEDNode(const std::shared_ptr<Params>& params) : 
         vehicle_interfaces::VehicleServiceNode(params), 
         rclcpp::Node(params->nodeName), 
-        params_(params) {}
+        params_(params)
+        {
+            this->addTimeSyncCallbackFunc(std::bind(&ZEDNode::_timeSyncCallback, this));
+        }
 
     ~ZEDNode()
     {
