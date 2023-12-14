@@ -154,7 +154,7 @@ void ScanZEDDevice(std::shared_ptr<ZEDNode> zedNode, sl::InitParameters init_par
 
             for (auto& [topicID, zedID] : zedTopicMap)
             {
-                if ((zedID < 10000000.0 ? i.id + (i.camera_model == sl::MODEL::ZED_X ? 10 : 0) : i.serial_number) == zedID)
+                if ((zedID < 10000000.0 ? i.id + ((i.camera_model == sl::MODEL::ZED_X || i.camera_model == sl::MODEL::ZED_XM) ? 10 : 0) : i.serial_number) == zedID)
                 {
                     _zedIDs[i.serial_number] = topicID;
                     break;
