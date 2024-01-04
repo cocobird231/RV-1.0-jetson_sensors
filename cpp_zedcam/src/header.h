@@ -104,7 +104,7 @@ private:
     float rgbPubPeriod_;
     float depthPubPeriod_;
     std::mutex paramsLock_;
-    
+
     rclcpp::Publisher<vehicle_interfaces::msg::Image>::SharedPtr rgbPub_;
     u_int64_t rgbFrameID;
     std::mutex rgbLock_;
@@ -231,7 +231,7 @@ public:
         this->rgbPub_->publish(msg);
     }
 
-    void pubDepthMat(const std::vector<uchar>& vec, cv::Size sz, int type, int unit)
+    void pubDepthMat(const std::vector<uchar>& vec, cv::Size sz, int type, int unit, float minDepthValue, float maxDepthValue)
     {
         if (!this->useDepthF_)
             return;
@@ -250,6 +250,8 @@ public:
         msg.format_type = msg.FORMAT_RAW;
         msg.cvmat_type = type;
         msg.depth_unit_type = unit;
+        msg.depth_valid_min = minDepthValue;
+        msg.depth_valid_max = maxDepthValue;
         msg.width = sz.width;
         msg.height = sz.height;
         msg.data = vec;

@@ -49,10 +49,17 @@ void RunZEDProc(sl::Camera& zed, std::shared_ptr<ZEDNode> node, int topicID, boo
     std::vector<uchar> pubRGBImgVec;
     std::vector<uchar> pubDepthImgVec;
 
+    float minDepthValue = 0.0;
+    float maxDepthValue = 0.0;
+
     // Check ZED opened
     while (!zed.isOpened() && !stopF)
         std::this_thread::sleep_for(1s);
-    
+
+    // Get valid range of depth value
+    minDepthValue = zed.getInitParameters().depth_minimum_distance;
+    maxDepthValue = zed.getInitParameters().depth_maximum_distance;
+
     if (stopF)
         return;
 
@@ -118,7 +125,7 @@ void RunZEDProc(sl::Camera& zed, std::shared_ptr<ZEDNode> node, int topicID, boo
                 {
                     data_ptr = reinterpret_cast<uint8_t *>(depthslMat.getPtr<sl::float1>());
                     pubDepthImgVec = std::vector<uint8_t>(data_ptr, data_ptr + size);
-                    pub->pubDepthMat(pubDepthImgVec, cv::Size(depthslMat.getWidth(), depthslMat.getHeight()), CV_32FC1, params->camera_depth_unit);
+                    pub->pubDepthMat(pubDepthImgVec, cv::Size(depthslMat.getWidth(), depthslMat.getHeight()), CV_32FC1, params->camera_depth_unit, minDepthValue, maxDepthValue);
                 }
             }
         }
@@ -140,10 +147,10 @@ void ScanZEDDevice(std::shared_ptr<ZEDNode> zedNode, sl::InitParameters init_par
         // No caps or all running
         if (zedTopicMap.size() <= 0)
             break;
-        
+
         for (auto& [topicID, zedID] : zedTopicMap)
             printf("Finding ZED %d with topic %d...\n", zedID, topicID);
-        
+
         // Search available ZED camera
         std::map<int, int> _zedIDs;
         std::vector<sl::DeviceProperties> _zedDevList = sl::Camera::getDeviceList();
@@ -249,14 +256,14 @@ int main(int argc, char** argv)
         init_parameters.depth_mode = sl::DEPTH_MODE::PERFORMANCE;
     else if (params->camera_depth_quality == 1)// Quality mode
         init_parameters.depth_mode = sl::DEPTH_MODE::QUALITY;
-    
+
     if (params->camera_depth_unit == 1)// Unit: millimeter
         init_parameters.coordinate_units = sl::UNIT::MILLIMETER;
     else if (params->camera_depth_unit == 2)// Unit: centimeter
         init_parameters.coordinate_units = sl::UNIT::CENTIMETER;
     else if (params->camera_depth_unit == 3)// Unit: meter
         init_parameters.coordinate_units = sl::UNIT::METER;
-    
+
     init_parameters.camera_fps = params->camera_fps;
 
     bool stopF = false;
