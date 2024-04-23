@@ -36,21 +36,24 @@ sudo apt install zstd -y
 rm -rf zed-install.run
 if [ "$jetson_main_ver" == "4.6" ]
 then
-    wget -O zed-install.run https://download.stereolabs.com/zedsdk/4.0/l4t32.7/jetsons
+    wget -O zed-install.run https://download.stereolabs.com/zedsdk/4.1/l4t32.7/jetsons
 elif [ "$jetson_main_ver" == "5.0" ]
 then
-    wget -O zed-install.run https://download.stereolabs.com/zedsdk/4.0/l4t35.1/jetsons
+    wget -O zed-install.run https://download.stereolabs.com/zedsdk/4.1/l4t35.1/jetsons
 elif [ "$jetson_main_ver" == "5.1" ]
 then
     if [ "$jetson_ver" == "5.1.2" ]
     then
-        wget -O zed-install.run https://download.stereolabs.com/zedsdk/4.0/l4t35.4/jetsons
+        wget -O zed-install.run https://download.stereolabs.com/zedsdk/4.1/l4t35.4/jetsons
     elif [ "$jetson_ver" == "5.1.1" ]
     then
-        wget -O zed-install.run https://download.stereolabs.com/zedsdk/4.0/l4t35.3/jetsons
+        wget -O zed-install.run https://download.stereolabs.com/zedsdk/4.1/l4t35.3/jetsons
     else
-        wget -O zed-install.run https://download.stereolabs.com/zedsdk/4.0/l4t35.2/jetsons
+        wget -O zed-install.run https://download.stereolabs.com/zedsdk/4.1/l4t35.2/jetsons
     fi
+elif [ "$jetson_main_ver" == "6.0" ]
+then
+    wget -O zed-install.run https://download.stereolabs.com/zedsdk/4.1/l4t36.2/jetsons
 else
     echo "Jetpack version not supported."
     exit 1
